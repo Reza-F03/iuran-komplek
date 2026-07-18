@@ -11,6 +11,7 @@ const PENGELUARAN_PATH = path.join(__dirname, 'data', 'pengeluaran.json');
 const PEMASUKAN_LAIN_PATH = path.join(__dirname, 'data', 'pemasukan_lain.json');
 const PASSWORD_ADMIN = 'masahiro123'; // Silakan ganti password Admin Anda di sini
 
+app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 app.use(express.urlencoded({ extended: true }));
 
