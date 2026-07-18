@@ -1,3 +1,6 @@
+// Load .env untuk development lokal (di Vercel env vars diset via dashboard)
+require('dotenv').config();
+
 const express = require('express');
 const path = require('path');
 const ExcelJS = require('exceljs');
