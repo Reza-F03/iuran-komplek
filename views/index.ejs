@@ -83,6 +83,9 @@
                         <%= isAdmin ? '🤠 Administrator (Akses Penuh)' : '👤 Warga Biasa (Mode Lihat)' %>
                     </span>
                 </p>
+                <% if (isAdmin && adminNama) { %>
+                <p class="text-xs text-indigo-500 mt-0.5">Login sebagai: <strong><%= adminNama %></strong></p>
+                <% } %>
                 <p class="text-xs text-gray-400 mt-1">
                     📅 Menampilkan iuran bulan <strong><%= bulanBerjalan %> 2026</strong> | Riwayat bulan lalu tersimpan otomatis
                 </p>
@@ -109,13 +112,20 @@
                 </button>
                 
                 <% if (!isAdmin) { %>
-                    <!-- Form Login Sederhana untuk Admin -->
-                    <form action="/login" method="POST" class="flex items-center gap-2 border border-gray-200 p-1.5 rounded-xl bg-gray-50 w-full sm:w-auto">
-                        <input type="password" name="password" placeholder="Password Admin..." required
-                            class="bg-transparent text-sm px-2 py-1 outline-none w-full sm:w-36 text-gray-700 focus:ring-0">
-                        <button type="submit" class="bg-gray-800 hover:bg-gray-900 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition shrink-0">
-                            Login Admin
-                        </button>
+                    <!-- Form Login Admin -->
+                    <form action="/login" method="POST" class="flex flex-col gap-2 border border-gray-200 p-3 rounded-xl bg-gray-50 w-full sm:w-auto">
+                        <% if (loginError) { %>
+                            <p class="text-xs text-rose-600 font-semibold text-center">⚠️ Username atau password salah</p>
+                        <% } %>
+                        <div class="flex items-center gap-2">
+                            <input type="text" name="username" placeholder="Username" required autocomplete="username"
+                                class="bg-white border border-gray-300 text-sm px-3 py-1.5 rounded-lg outline-none w-full sm:w-28 text-gray-700 focus:ring-2 focus:ring-indigo-400">
+                            <input type="password" name="password" placeholder="Password" required autocomplete="current-password"
+                                class="bg-white border border-gray-300 text-sm px-3 py-1.5 rounded-lg outline-none w-full sm:w-32 text-gray-700 focus:ring-2 focus:ring-indigo-400">
+                            <button type="submit" class="bg-gray-800 hover:bg-gray-900 text-white text-xs font-medium px-3 py-2 rounded-lg transition shrink-0">
+                                Login
+                            </button>
+                        </div>
                     </form>
                 <% } else { %>
                     <a href="/logout" class="bg-rose-100 hover:bg-rose-200 text-rose-700 font-medium px-4 py-2 rounded-xl text-sm transition">

@@ -1,15 +1,24 @@
 const express = require('express');
-const fs = require('fs');
 const path = require('path');
 const ExcelJS = require('exceljs');
 const session = require('express-session');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
-const PORT = 3000;
-const DATA_PATH = path.join(__dirname, 'data', 'warga.json');
-const PENGELUARAN_PATH = path.join(__dirname, 'data', 'pengeluaran.json');
-const PEMASUKAN_LAIN_PATH = path.join(__dirname, 'data', 'pemasukan_lain.json');
-const PASSWORD_ADMIN = 'masahiro123'; // Silakan ganti password Admin Anda di sini
+const PORT = process.env.PORT || 3000;
+
+// ============================================================
+// KONFIGURASI SUPABASE
+// Set environment variables di Vercel Dashboard:
+//   SUPABASE_URL  = https://xxxx.supabase.co
+//   SUPABASE_KEY  = service_role key (bukan anon key)
+// ============================================================
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_KEY
+);
+
+const TAHUN = 2026;
 
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
@@ -17,127 +26,90 @@ app.use(express.urlencoded({ extended: true }));
 
 // Setup Session Middleware
 app.use(session({
-    secret: 'kunci-rahasia-komplek',
+    secret: process.env.SESSION_SECRET || 'kunci-rahasia-komplek',
     resave: false,
     saveUninitialized: true
 }));
 
-// FUNGSI DINAMIS: Mengambil nama bulan berjalan saja
+// ============================================================
+// HELPER FUNCTIONS
+// ============================================================
+
 function getBulanBerjalan() {
     const namaBulan = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-    const sekarang = new Date();
-    const bulanSekarang = namaBulan[sekarang.getMonth()];
-    return bulanSekarang; // Mengembalikan string, misal: 'Jul'
+    return namaBulan[new Date().getMonth()];
 }
 
-// FUNGSI: Mengambil daftar bulan dari Januari sampai Desember secara berurutan
-function getAllBulanFromData(warga) {
-    // Daftar bulan lengkap dari Januari sampai Desember
-    const daftarBulanLengkap = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-    return daftarBulanLengkap;
+function getAllBulan() {
+    return ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 }
 
-// Fungsi pembantu database JSON
-function bacaData() {
-    const rawData = fs.readFileSync(DATA_PATH);
-    const warga = JSON.parse(rawData);
-    const bulanSekarang = getBulanBerjalan();
+// Gabungkan data warga + status semua bulan menjadi format lama
+// { id, no_rumah, nama, nominal_iuran, status_Jan, status_Feb, ... }
+function mergeWargaDenganStatus(wargaRows, statusRows) {
+    const statusMap = {};
+    statusRows.forEach(s => {
+        if (!statusMap[s.warga_id]) statusMap[s.warga_id] = {};
+        statusMap[s.warga_id][s.bulan] = s.status;
+    });
 
-    // Pastikan field bulan berjalan sudah ada di setiap data warga, jika belum ada set 'Belum Bayar'
-    return warga.map(item => {
-        if (!item[`status_${bulanSekarang}`]) item[`status_${bulanSekarang}`] = 'Belum Bayar';
-        return item;
+    return wargaRows.map(w => {
+        const obj = {
+            id: w.id,
+            no_rumah: w.no_rumah,
+            nama: w.nama,
+            nominal_iuran: w.nominal_iuran
+        };
+        getAllBulan().forEach(bulan => {
+            obj[`status_${bulan}`] = (statusMap[w.id] && statusMap[w.id][bulan]) || 'Belum Bayar';
+        });
+        return obj;
     });
 }
 
-function simpanData(data) {
-    fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
-}
-
-// Fungsi untuk pengeluaran
-function bacaPengeluaran() {
-    if (!fs.existsSync(PENGELUARAN_PATH)) {
-        fs.writeFileSync(PENGELUARAN_PATH, JSON.stringify([], null, 2));
-    }
-    const rawData = fs.readFileSync(PENGELUARAN_PATH);
-    return JSON.parse(rawData);
-}
-
-function simpanPengeluaran(data) {
-    fs.writeFileSync(PENGELUARAN_PATH, JSON.stringify(data, null, 2));
-}
-
-// Fungsi untuk pemasukan lain-lain
-function bacaPemasukanLain() {
-    if (!fs.existsSync(PEMASUKAN_LAIN_PATH)) {
-        fs.writeFileSync(PEMASUKAN_LAIN_PATH, JSON.stringify([], null, 2));
-    }
-    const rawData = fs.readFileSync(PEMASUKAN_LAIN_PATH);
-    return JSON.parse(rawData);
-}
-
-function simpanPemasukanLain(data) {
-    fs.writeFileSync(PEMASUKAN_LAIN_PATH, JSON.stringify(data, null, 2));
-}
-
-// Fungsi hitung total kas
 function hitungKeuangan(warga, pengeluaran, pemasukanLain, bulan) {
-    // Hitung pemasukan dari iuran warga
     let totalPemasukanIuran = 0;
     warga.forEach(item => {
-        if (item['status_' + bulan] === 'Lunas') {
+        if (item[`status_${bulan}`] === 'Lunas') {
             totalPemasukanIuran += item.nominal_iuran || 0;
         }
     });
-    
-    // Hitung pemasukan lain-lain bulan tersebut
+
     let totalPemasukanLain = 0;
     pemasukanLain.forEach(item => {
-        if (item.bulan === bulan) {
-            totalPemasukanLain += item.nominal || 0;
-        }
+        if (item.bulan === bulan) totalPemasukanLain += item.nominal || 0;
     });
-    
-    // Total pemasukan = iuran + pemasukan lain
+
     const totalPemasukan = totalPemasukanIuran + totalPemasukanLain;
-    
-    // Hitung total pengeluaran bulan tersebut
+
     let totalPengeluaran = 0;
     pengeluaran.forEach(item => {
-        if (item.bulan === bulan) {
-            totalPengeluaran += item.nominal || 0;
-        }
+        if (item.bulan === bulan) totalPengeluaran += item.nominal || 0;
     });
-    
-    const sisaKas = totalPemasukan - totalPengeluaran;
-    
+
     return {
         totalPemasukanIuran,
         totalPemasukanLain,
         totalPemasukan,
         totalPengeluaran,
-        sisaKas
+        sisaKas: totalPemasukan - totalPengeluaran
     };
 }
 
-// Fungsi hitung kumulatif kas dari Januari sampai bulan tertentu
 function hitungKumulatifKas(warga, pengeluaran, pemasukanLain, sampaBulan) {
-    const namaBulan = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+    const namaBulan = getAllBulan();
     const indexSampai = namaBulan.indexOf(sampaBulan);
-    
     let totalKumulatif = 0;
-    
-    // Loop dari Januari sampai bulan yang ditentukan
     for (let i = 0; i <= indexSampai; i++) {
-        const bulan = namaBulan[i];
-        const keuangan = hitungKeuangan(warga, pengeluaran, pemasukanLain, bulan);
-        totalKumulatif += keuangan.sisaKas;
+        const k = hitungKeuangan(warga, pengeluaran, pemasukanLain, namaBulan[i]);
+        totalKumulatif += k.sisaKas;
     }
-    
     return totalKumulatif;
 }
 
-// Middleware untuk memproteksi rute khusus Admin
+// ============================================================
+// MIDDLEWARE ADMIN
+// ============================================================
 function proteksiAdmin(req, res, next) {
     if (req.session.isAdmin) {
         next();
@@ -146,220 +118,407 @@ function proteksiAdmin(req, res, next) {
     }
 }
 
-// Halaman Utama: Warga & Admin melihat tabel yang sama, tapi menu aksinya berbeda
-app.get('/', (req, res) => {
-    const warga = bacaData();
-    const bulanBerjalan = getBulanBerjalan(); // Ambil bulan berjalan saja
-    const semuaBulan = getAllBulanFromData(warga); // Ambil semua bulan historis
-    const pengeluaran = bacaPengeluaran();
-    const pemasukanLain = bacaPemasukanLain();
-    const keuangan = hitungKeuangan(warga, pengeluaran, pemasukanLain, bulanBerjalan);
-    const totalKumulatif = hitungKumulatifKas(warga, pengeluaran, pemasukanLain, bulanBerjalan);
-    
-    // Hitung keuangan untuk semua bulan (untuk modal riwayat)
-    const riwayatKeuangan = semuaBulan.map(bulan => {
-        const keuanganBulan = hitungKeuangan(warga, pengeluaran, pemasukanLain, bulan);
-        const kumulatifBulan = hitungKumulatifKas(warga, pengeluaran, pemasukanLain, bulan);
-        return {
-            bulan: bulan,
-            pemasukanIuran: keuanganBulan.totalPemasukanIuran,
-            pemasukanLain: keuanganBulan.totalPemasukanLain,
-            pemasukan: keuanganBulan.totalPemasukan,
-            pengeluaran: keuanganBulan.totalPengeluaran,
-            sisaKas: keuanganBulan.sisaKas,
-            kumulatif: kumulatifBulan
-        };
-    });
-    
-    res.render('index', { 
-        warga, 
-        isAdmin: req.session.isAdmin || false,
-        bulanBerjalan,
-        semuaBulan,
-        pengeluaran,
-        pemasukanLain,
-        keuangan,
-        totalKumulatif,
-        riwayatKeuangan
-    });
-});
+// ============================================================
+// ROUTES
+// ============================================================
 
-// Proses Login Admin
-app.post('/login', (req, res) => {
-    const { password } = req.body;
-    if (password === PASSWORD_ADMIN) {
-        req.session.isAdmin = true;
+// Halaman Utama
+app.get('/', async (req, res) => {
+    try {
+        const bulanBerjalan = getBulanBerjalan();
+        const semuaBulan = getAllBulan();
+
+        // Ambil semua data paralel
+        const [
+            { data: wargaRows, error: errWarga },
+            { data: statusRows, error: errStatus },
+            { data: pengeluaran, error: errPengeluaran },
+            { data: pemasukanLain, error: errPemasukanLain }
+        ] = await Promise.all([
+            supabase.from('warga').select('*').order('id'),
+            supabase.from('iuran_status').select('*').eq('tahun', TAHUN),
+            supabase.from('pengeluaran').select('*').eq('tahun', TAHUN).order('tanggal', { ascending: false }),
+            supabase.from('pemasukan_lain').select('*').eq('tahun', TAHUN).order('tanggal', { ascending: false })
+        ]);
+
+        if (errWarga) throw errWarga;
+        if (errStatus) throw errStatus;
+        if (errPengeluaran) throw errPengeluaran;
+        if (errPemasukanLain) throw errPemasukanLain;
+
+        const warga = mergeWargaDenganStatus(wargaRows || [], statusRows || []);
+        const keuangan = hitungKeuangan(warga, pengeluaran || [], pemasukanLain || [], bulanBerjalan);
+        const totalKumulatif = hitungKumulatifKas(warga, pengeluaran || [], pemasukanLain || [], bulanBerjalan);
+
+        const riwayatKeuangan = semuaBulan.map(bulan => {
+            const k = hitungKeuangan(warga, pengeluaran || [], pemasukanLain || [], bulan);
+            const kumulatif = hitungKumulatifKas(warga, pengeluaran || [], pemasukanLain || [], bulan);
+            return {
+                bulan,
+                pemasukanIuran: k.totalPemasukanIuran,
+                pemasukanLain: k.totalPemasukanLain,
+                pemasukan: k.totalPemasukan,
+                pengeluaran: k.totalPengeluaran,
+                sisaKas: k.sisaKas,
+                kumulatif
+            };
+        });
+
+        res.render('index', {
+            warga,
+            isAdmin: req.session.isAdmin || false,
+            adminNama: req.session.adminNama || null,
+            bulanBerjalan,
+            semuaBulan,
+            pengeluaran: pengeluaran || [],
+            pemasukanLain: pemasukanLain || [],
+            keuangan,
+            totalKumulatif,
+            riwayatKeuangan,
+            loginError: req.query.login_error === '1'
+        });
+    } catch (err) {
+        console.error('Error GET /:', err);
+        res.status(500).send('Terjadi kesalahan server: ' + err.message);
     }
-    res.redirect('/');
 });
 
-// Proses Logout Admin
+// Login Admin
+app.post('/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+
+        if (!username || !password) {
+            return res.redirect('/?login_error=1');
+        }
+
+        // Verifikasi username + password langsung di PostgreSQL via pgcrypto
+        // crypt() di sisi DB memastikan format hash konsisten ($2a$ dari pgcrypto)
+        const { data, error } = await supabase.rpc('verify_admin_login', {
+            p_username: username.trim().toLowerCase(),
+            p_password: password
+        });
+
+        if (error || !data || data.length === 0 || !data[0].valid) {
+            return res.redirect('/?login_error=1');
+        }
+
+        const adminData = data[0];
+        req.session.isAdmin = true;
+        req.session.adminUsername = adminData.username;
+        req.session.adminNama = adminData.nama_lengkap;
+
+        // Update last_login
+        await supabase
+            .from('admin')
+            .update({ last_login: new Date().toISOString() })
+            .eq('id', adminData.id);
+
+        res.redirect('/');
+    } catch (err) {
+        console.error('Error login:', err);
+        res.redirect('/?login_error=1');
+    }
+});
+
+// Logout Admin
 app.get('/logout', (req, res) => {
     req.session.destroy();
     res.redirect('/');
 });
 
-// ================= HANYA BISA DIAKSES ADMIN =================
+// ============================================================
+// CRUD WARGA (hanya Admin)
+// ============================================================
 
-// 1. Tambah Rumah Baru
-app.post('/tambah-warga', proteksiAdmin, (req, res) => {
-    const { no_rumah, nama, nominal_iuran } = req.body;
-    const warga = bacaData();
-    const bulanSekarang = getBulanBerjalan();
-    
-    const idBaru = warga.length > 0 ? Math.max(...warga.map(w => w.id)) + 1 : 1;
-    
-    // Rumah baru hanya punya status untuk bulan berjalan
-    const rumahBaru = {
-        id: idBaru,
-        no_rumah,
-        nama,
-        nominal_iuran: parseInt(nominal_iuran) || 50000
-    };
-    rumahBaru[`status_${bulanSekarang}`] = 'Belum Bayar';
-    
-    warga.push(rumahBaru);
+// 1. Tambah Warga Baru
+app.post('/tambah-warga', proteksiAdmin, async (req, res) => {
+    try {
+        const { no_rumah, nama, nominal_iuran } = req.body;
+        const bulanBerjalan = getBulanBerjalan();
 
-    simpanData(warga);
-    res.redirect('/');
+        // Insert warga
+        const { data: wargaBaru, error: errWarga } = await supabase
+            .from('warga')
+            .insert({ no_rumah, nama, nominal_iuran: parseInt(nominal_iuran) || 50000 })
+            .select()
+            .single();
+
+        if (errWarga) throw errWarga;
+
+        // Buat status default "Belum Bayar" untuk semua bulan tahun ini
+        const statusBatch = getAllBulan().map(bulan => ({
+            warga_id: wargaBaru.id,
+            bulan,
+            tahun: TAHUN,
+            status: 'Belum Bayar'
+        }));
+
+        const { error: errStatus } = await supabase
+            .from('iuran_status')
+            .insert(statusBatch);
+
+        if (errStatus) throw errStatus;
+
+        res.redirect('/');
+    } catch (err) {
+        console.error('Error tambah-warga:', err);
+        res.status(500).send('Gagal tambah warga: ' + err.message);
+    }
 });
 
-// 2. Ubah Status Iuran (Lunas / Belum Bayar)
-app.post('/update-iuran', proteksiAdmin, (req, res) => {
-    const { id, bulan, status } = req.body;
-    let warga = bacaData();
-    
-    warga = warga.map(item => {
-        if (item.id === parseInt(id)) {
-            item[`status_${bulan}`] = status;
-        }
-        return item;
-    });
+// 2. Update Status Iuran
+app.post('/update-iuran', proteksiAdmin, async (req, res) => {
+    try {
+        const { id, bulan, status } = req.body;
 
-    simpanData(warga);
-    res.redirect('/');
+        const { error } = await supabase
+            .from('iuran_status')
+            .upsert(
+                { warga_id: parseInt(id), bulan, tahun: TAHUN, status },
+                { onConflict: 'warga_id,bulan,tahun' }
+            );
+
+        if (error) throw error;
+
+        res.redirect('/');
+    } catch (err) {
+        console.error('Error update-iuran:', err);
+        res.status(500).send('Gagal update iuran: ' + err.message);
+    }
 });
 
-// 3. Hapus Data Rumah
-app.post('/hapus-warga', proteksiAdmin, (req, res) => {
-    const { id } = req.body;
-    let warga = bacaData();
-    
-    warga = warga.filter(item => item.id !== parseInt(id));
-    simpanData(warga);
-    res.redirect('/');
+// 3. Hapus Warga
+app.post('/hapus-warga', proteksiAdmin, async (req, res) => {
+    try {
+        const { id } = req.body;
+
+        // iuran_status akan terhapus otomatis karena ON DELETE CASCADE
+        const { error } = await supabase
+            .from('warga')
+            .delete()
+            .eq('id', parseInt(id));
+
+        if (error) throw error;
+
+        res.redirect('/');
+    } catch (err) {
+        console.error('Error hapus-warga:', err);
+        res.status(500).send('Gagal hapus warga: ' + err.message);
+    }
 });
 
+// 4. Edit Data Warga
+app.post('/edit-warga', proteksiAdmin, async (req, res) => {
+    try {
+        const { id, no_rumah, nama, nominal_iuran } = req.body;
 
-// 4. Edit Data Rumah (Nomor Rumah & Nama Pemilik)
-app.post('/edit-warga', proteksiAdmin, (req, res) => {
-    const { id, no_rumah, nama, nominal_iuran } = req.body;
-    let warga = bacaData();
-    
-    warga = warga.map(item => {
-        if (item.id === parseInt(id)) {
-            item.no_rumah = no_rumah;
-            item.nama = nama;
-            item.nominal_iuran = parseInt(nominal_iuran) || item.nominal_iuran || 50000;
-        }
-        return item;
-    });
+        const { error } = await supabase
+            .from('warga')
+            .update({
+                no_rumah,
+                nama,
+                nominal_iuran: parseInt(nominal_iuran) || 50000
+            })
+            .eq('id', parseInt(id));
 
-    simpanData(warga);
-    res.redirect('/');
+        if (error) throw error;
+
+        res.redirect('/');
+    } catch (err) {
+        console.error('Error edit-warga:', err);
+        res.status(500).send('Gagal edit warga: ' + err.message);
+    }
 });
 
-// ==============================================================
+// ============================================================
+// PENGELUARAN (hanya Admin)
+// ============================================================
 
 // 5. Tambah Pengeluaran
-app.post('/tambah-pengeluaran', proteksiAdmin, (req, res) => {
-    const { keterangan, nominal, bulan } = req.body;
-    const pengeluaran = bacaPengeluaran();
-    
-    const idBaru = pengeluaran.length > 0 ? Math.max(...pengeluaran.map(p => p.id)) + 1 : 1;
-    const tanggal = new Date().toISOString();
-    
-    pengeluaran.push({
-        id: idBaru,
-        keterangan,
-        nominal: parseInt(nominal) || 0,
-        bulan: bulan || getBulanBerjalan(),
-        tanggal
-    });
-    
-    simpanPengeluaran(pengeluaran);
-    res.redirect('/');
+app.post('/tambah-pengeluaran', proteksiAdmin, async (req, res) => {
+    try {
+        const { keterangan, nominal, bulan } = req.body;
+
+        const { error } = await supabase
+            .from('pengeluaran')
+            .insert({
+                keterangan,
+                nominal: parseInt(nominal) || 0,
+                bulan: bulan || getBulanBerjalan(),
+                tahun: TAHUN,
+                tanggal: new Date().toISOString()
+            });
+
+        if (error) throw error;
+
+        res.redirect('/');
+    } catch (err) {
+        console.error('Error tambah-pengeluaran:', err);
+        res.status(500).send('Gagal tambah pengeluaran: ' + err.message);
+    }
 });
 
 // 6. Hapus Pengeluaran
-app.post('/hapus-pengeluaran', proteksiAdmin, (req, res) => {
-    const { id } = req.body;
-    let pengeluaran = bacaPengeluaran();
-    
-    pengeluaran = pengeluaran.filter(item => item.id !== parseInt(id));
-    simpanPengeluaran(pengeluaran);
-    res.redirect('/');
+app.post('/hapus-pengeluaran', proteksiAdmin, async (req, res) => {
+    try {
+        const { id } = req.body;
+
+        const { error } = await supabase
+            .from('pengeluaran')
+            .delete()
+            .eq('id', parseInt(id));
+
+        if (error) throw error;
+
+        res.redirect('/');
+    } catch (err) {
+        console.error('Error hapus-pengeluaran:', err);
+        res.status(500).send('Gagal hapus pengeluaran: ' + err.message);
+    }
 });
 
-// 7. Tambah Pemasukan Lain-lain
-app.post('/tambah-pemasukan-lain', proteksiAdmin, (req, res) => {
-    const { keterangan, nominal, bulan } = req.body;
-    const pemasukanLain = bacaPemasukanLain();
-    
-    const idBaru = pemasukanLain.length > 0 ? Math.max(...pemasukanLain.map(p => p.id)) + 1 : 1;
-    const tanggal = new Date().toISOString();
-    
-    pemasukanLain.push({
-        id: idBaru,
-        keterangan,
-        nominal: parseInt(nominal) || 0,
-        bulan: bulan || getBulanBerjalan(),
-        tanggal
-    });
-    
-    simpanPemasukanLain(pemasukanLain);
-    res.redirect('/');
+// ============================================================
+// PEMASUKAN LAIN (hanya Admin)
+// ============================================================
+
+// 7. Tambah Pemasukan Lain
+app.post('/tambah-pemasukan-lain', proteksiAdmin, async (req, res) => {
+    try {
+        const { keterangan, nominal, bulan } = req.body;
+
+        const { error } = await supabase
+            .from('pemasukan_lain')
+            .insert({
+                keterangan,
+                nominal: parseInt(nominal) || 0,
+                bulan: bulan || getBulanBerjalan(),
+                tahun: TAHUN,
+                tanggal: new Date().toISOString()
+            });
+
+        if (error) throw error;
+
+        res.redirect('/');
+    } catch (err) {
+        console.error('Error tambah-pemasukan-lain:', err);
+        res.status(500).send('Gagal tambah pemasukan lain: ' + err.message);
+    }
 });
 
-// 8. Hapus Pemasukan Lain-lain
-app.post('/hapus-pemasukan-lain', proteksiAdmin, (req, res) => {
-    const { id } = req.body;
-    let pemasukanLain = bacaPemasukanLain();
-    
-    pemasukanLain = pemasukanLain.filter(item => item.id !== parseInt(id));
-    simpanPemasukanLain(pemasukanLain);
-    res.redirect('/');
+// 8. Hapus Pemasukan Lain
+app.post('/hapus-pemasukan-lain', proteksiAdmin, async (req, res) => {
+    try {
+        const { id } = req.body;
+
+        const { error } = await supabase
+            .from('pemasukan_lain')
+            .delete()
+            .eq('id', parseInt(id));
+
+        if (error) throw error;
+
+        res.redirect('/');
+    } catch (err) {
+        console.error('Error hapus-pemasukan-lain:', err);
+        res.status(500).send('Gagal hapus pemasukan lain: ' + err.message);
+    }
 });
 
-// ==============================================================
+// ============================================================
+// DOWNLOAD EXCEL
+// ============================================================
 
-// Download Excel (Bisa diakses Warga & Admin)
+// Download Rekap Iuran (semua bulan)
 app.get('/download-excel', async (req, res) => {
-    const warga = bacaData();
-    const semuaBulan = getAllBulanFromData(warga); // Ambil semua bulan yang ada di database
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Laporan Iuran');
+    try {
+        const semuaBulan = getAllBulan();
 
-    // Buat kolom dinamis berdasarkan semua bulan yang ada
-    const columns = [
-        { header: 'No. Rumah', key: 'no_rumah', width: 15 },
-        { header: 'Nama Pemilik', key: 'nama', width: 25 }
-    ];
-    
-    semuaBulan.forEach(bulan => {
-        columns.push({ header: `Status ${bulan}`, key: `status_${bulan}`, width: 18 });
-    });
-    
-    worksheet.columns = columns;
+        const [
+            { data: wargaRows, error: errW },
+            { data: statusRows, error: errS }
+        ] = await Promise.all([
+            supabase.from('warga').select('*').order('id'),
+            supabase.from('iuran_status').select('*').eq('tahun', TAHUN)
+        ]);
 
-    worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
-    worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '4F46E5' } };
+        if (errW) throw errW;
+        if (errS) throw errS;
 
-    warga.forEach(item => {
-        const row = worksheet.addRow(item);
+        const warga = mergeWargaDenganStatus(wargaRows || [], statusRows || []);
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Laporan Iuran');
+
+        const columns = [
+            { header: 'No. Rumah', key: 'no_rumah', width: 15 },
+            { header: 'Nama Pemilik', key: 'nama', width: 25 }
+        ];
         semuaBulan.forEach(bulan => {
-            const key = `status_${bulan}`;
-            const cell = row.getCell(key);
+            columns.push({ header: `Status ${bulan}`, key: `status_${bulan}`, width: 18 });
+        });
+        worksheet.columns = columns;
+
+        worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
+        worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '4F46E5' } };
+
+        warga.forEach(item => {
+            const row = worksheet.addRow(item);
+            semuaBulan.forEach(bulan => {
+                const cell = row.getCell(`status_${bulan}`);
+                if (cell.value === 'Lunas') {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'DCFCE7' } };
+                    cell.font = { color: { argb: '15803D' } };
+                } else if (cell.value === 'Belum Bayar') {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FEE2E2' } };
+                    cell.font = { color: { argb: 'B91C1C' } };
+                }
+            });
+        });
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename=Laporan_Iuran_Komplek_Lengkap.xlsx');
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        console.error('Error download-excel:', err);
+        res.status(500).send('Gagal download excel: ' + err.message);
+    }
+});
+
+// Download Excel per Bulan (Admin)
+app.get('/download-excel-bulan/:bulan', proteksiAdmin, async (req, res) => {
+    try {
+        const { bulan } = req.params;
+
+        const [
+            { data: wargaRows, error: errW },
+            { data: statusRows, error: errS }
+        ] = await Promise.all([
+            supabase.from('warga').select('*').order('id'),
+            supabase.from('iuran_status').select('*').eq('tahun', TAHUN).eq('bulan', bulan)
+        ]);
+
+        if (errW) throw errW;
+        if (errS) throw errS;
+
+        const warga = mergeWargaDenganStatus(wargaRows || [], statusRows || []);
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet(`Laporan ${bulan}`);
+
+        worksheet.columns = [
+            { header: 'No. Rumah', key: 'no_rumah', width: 15 },
+            { header: 'Nama Pemilik', key: 'nama', width: 25 },
+            { header: `Status ${bulan}`, key: `status_${bulan}`, width: 18 }
+        ];
+
+        worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
+        worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '4F46E5' } };
+
+        warga.forEach(item => {
+            const row = worksheet.addRow(item);
+            const cell = row.getCell(`status_${bulan}`);
             if (cell.value === 'Lunas') {
                 cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'DCFCE7' } };
                 cell.font = { color: { argb: '15803D' } };
@@ -368,164 +527,142 @@ app.get('/download-excel', async (req, res) => {
                 cell.font = { color: { argb: 'B91C1C' } };
             }
         });
-    });
 
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename=Laporan_Iuran_Komplek_Lengkap.xlsx');
-    await workbook.xlsx.write(res);
-    res.end();
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename=Laporan_Iuran_${bulan}_${TAHUN}.xlsx`);
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        console.error('Error download-excel-bulan:', err);
+        res.status(500).send('Gagal download excel bulan: ' + err.message);
+    }
 });
 
-// Download Excel untuk bulan tertentu (Khusus Admin)
-app.get('/download-excel-bulan/:bulan', proteksiAdmin, async (req, res) => {
-    const { bulan } = req.params;
-    const warga = bacaData();
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet(`Laporan ${bulan}`);
-
-    worksheet.columns = [
-        { header: 'No. Rumah', key: 'no_rumah', width: 15 },
-        { header: 'Nama Pemilik', key: 'nama', width: 25 },
-        { header: `Status ${bulan}`, key: `status_${bulan}`, width: 18 }
-    ];
-
-    worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
-    worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '4F46E5' } };
-
-    warga.forEach(item => {
-        const row = worksheet.addRow(item);
-        const key = `status_${bulan}`;
-        const cell = row.getCell(key);
-        if (cell.value === 'Lunas') {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'DCFCE7' } };
-            cell.font = { color: { argb: '15803D' } };
-        } else if (cell.value === 'Belum Bayar') {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FEE2E2' } };
-            cell.font = { color: { argb: 'B91C1C' } };
-        }
-    });
-
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename=Laporan_Iuran_${bulan}_2026.xlsx`);
-    await workbook.xlsx.write(res);
-    res.end();
-});
-
-// Download Excel Laporan Keuangan (Bisa diakses Warga & Admin)
+// Download Laporan Keuangan Lengkap
 app.get('/download-keuangan', async (req, res) => {
-    const warga = bacaData();
-    const pengeluaran = bacaPengeluaran();
-    const pemasukanLain = bacaPemasukanLain();
-    const semuaBulan = getAllBulanFromData(warga);
-    
-    const workbook = new ExcelJS.Workbook();
-    
-    // Sheet 1: Ringkasan Keuangan
-    const sheetRingkasan = workbook.addWorksheet('Ringkasan Keuangan');
-    sheetRingkasan.columns = [
-        { header: 'Bulan', key: 'bulan', width: 15 },
-        { header: 'Pemasukan Iuran', key: 'pemasukanIuran', width: 20 },
-        { header: 'Pemasukan Lain', key: 'pemasukanLain', width: 20 },
-        { header: 'Total Pemasukan', key: 'pemasukan', width: 20 },
-        { header: 'Total Pengeluaran', key: 'pengeluaran', width: 20 },
-        { header: 'Kas/Bulan', key: 'sisa', width: 20 },
-        { header: 'Total Kas', key: 'kumulatif', width: 20 }
-    ];
-    
-    sheetRingkasan.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
-    sheetRingkasan.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '4F46E5' } };
-    
-    semuaBulan.forEach(bulan => {
-        const keuangan = hitungKeuangan(warga, pengeluaran, pemasukanLain, bulan);
-        const kumulatif = hitungKumulatifKas(warga, pengeluaran, pemasukanLain, bulan);
-        const row = sheetRingkasan.addRow({
-            bulan: bulan,
-            pemasukanIuran: keuangan.totalPemasukanIuran,
-            pemasukanLain: keuangan.totalPemasukanLain,
-            pemasukan: keuangan.totalPemasukan,
-            pengeluaran: keuangan.totalPengeluaran,
-            sisa: keuangan.sisaKas,
-            kumulatif: kumulatif
+    try {
+        const semuaBulan = getAllBulan();
+
+        const [
+            { data: wargaRows, error: errW },
+            { data: statusRows, error: errS },
+            { data: pengeluaran, error: errP },
+            { data: pemasukanLain, error: errPL }
+        ] = await Promise.all([
+            supabase.from('warga').select('*').order('id'),
+            supabase.from('iuran_status').select('*').eq('tahun', TAHUN),
+            supabase.from('pengeluaran').select('*').eq('tahun', TAHUN).order('tanggal'),
+            supabase.from('pemasukan_lain').select('*').eq('tahun', TAHUN).order('tanggal')
+        ]);
+
+        if (errW) throw errW;
+        if (errS) throw errS;
+        if (errP) throw errP;
+        if (errPL) throw errPL;
+
+        const warga = mergeWargaDenganStatus(wargaRows || [], statusRows || []);
+        const workbook = new ExcelJS.Workbook();
+
+        // Sheet 1: Ringkasan Keuangan
+        const sheetRingkasan = workbook.addWorksheet('Ringkasan Keuangan');
+        sheetRingkasan.columns = [
+            { header: 'Bulan', key: 'bulan', width: 15 },
+            { header: 'Pemasukan Iuran', key: 'pemasukanIuran', width: 20 },
+            { header: 'Pemasukan Lain', key: 'pemasukanLain', width: 20 },
+            { header: 'Total Pemasukan', key: 'pemasukan', width: 20 },
+            { header: 'Total Pengeluaran', key: 'pengeluaran', width: 20 },
+            { header: 'Kas/Bulan', key: 'sisa', width: 20 },
+            { header: 'Total Kas', key: 'kumulatif', width: 20 }
+        ];
+        sheetRingkasan.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
+        sheetRingkasan.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '4F46E5' } };
+
+        semuaBulan.forEach(bulan => {
+            const k = hitungKeuangan(warga, pengeluaran || [], pemasukanLain || [], bulan);
+            const kumulatif = hitungKumulatifKas(warga, pengeluaran || [], pemasukanLain || [], bulan);
+            const row = sheetRingkasan.addRow({
+                bulan,
+                pemasukanIuran: k.totalPemasukanIuran,
+                pemasukanLain: k.totalPemasukanLain,
+                pemasukan: k.totalPemasukan,
+                pengeluaran: k.totalPengeluaran,
+                sisa: k.sisaKas,
+                kumulatif
+            });
+            ['pemasukanIuran', 'pemasukanLain', 'pemasukan', 'pengeluaran', 'sisa', 'kumulatif'].forEach(key => {
+                row.getCell(key).numFmt = 'Rp #,##0';
+            });
+            if (k.sisaKas < 0) {
+                row.getCell('sisa').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FEE2E2' } };
+                row.getCell('sisa').font = { color: { argb: 'B91C1C' } };
+            } else {
+                row.getCell('sisa').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'DCFCE7' } };
+                row.getCell('sisa').font = { color: { argb: '15803D' } };
+            }
+            if (kumulatif < 0) {
+                row.getCell('kumulatif').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FEE2E2' } };
+                row.getCell('kumulatif').font = { bold: true, color: { argb: 'B91C1C' } };
+            } else {
+                row.getCell('kumulatif').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'E0E7FF' } };
+                row.getCell('kumulatif').font = { bold: true, color: { argb: '4F46E5' } };
+            }
         });
-        
-        // Format currency
-        row.getCell('pemasukanIuran').numFmt = 'Rp #,##0';
-        row.getCell('pemasukanLain').numFmt = 'Rp #,##0';
-        row.getCell('pemasukan').numFmt = 'Rp #,##0';
-        row.getCell('pengeluaran').numFmt = 'Rp #,##0';
-        row.getCell('sisa').numFmt = 'Rp #,##0';
-        row.getCell('kumulatif').numFmt = 'Rp #,##0';
-        
-        // Color coding untuk sisa kas
-        if (keuangan.sisaKas < 0) {
-            row.getCell('sisa').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FEE2E2' } };
-            row.getCell('sisa').font = { color: { argb: 'B91C1C' } };
-        } else {
-            row.getCell('sisa').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'DCFCE7' } };
-            row.getCell('sisa').font = { color: { argb: '15803D' } };
-        }
-        
-        // Color coding untuk kumulatif
-        if (kumulatif < 0) {
-            row.getCell('kumulatif').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FEE2E2' } };
-            row.getCell('kumulatif').font = { bold: true, color: { argb: 'B91C1C' } };
-        } else {
-            row.getCell('kumulatif').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'E0E7FF' } };
-            row.getCell('kumulatif').font = { bold: true, color: { argb: '4F46E5' } };
-        }
-    });
-    
-    // Sheet 2: Detail Pengeluaran
-    const sheetPengeluaran = workbook.addWorksheet('Detail Pengeluaran');
-    sheetPengeluaran.columns = [
-        { header: 'Tanggal', key: 'tanggal', width: 20 },
-        { header: 'Bulan', key: 'bulan', width: 12 },
-        { header: 'Keterangan', key: 'keterangan', width: 40 },
-        { header: 'Nominal', key: 'nominal', width: 20 }
-    ];
-    
-    sheetPengeluaran.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
-    sheetPengeluaran.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EF4444' } };
-    
-    pengeluaran.forEach(item => {
-        const row = sheetPengeluaran.addRow({
-            tanggal: new Date(item.tanggal).toLocaleString('id-ID'),
-            bulan: item.bulan,
-            keterangan: item.keterangan,
-            nominal: item.nominal
+
+        // Sheet 2: Detail Pengeluaran
+        const sheetPengeluaran = workbook.addWorksheet('Detail Pengeluaran');
+        sheetPengeluaran.columns = [
+            { header: 'Tanggal', key: 'tanggal', width: 20 },
+            { header: 'Bulan', key: 'bulan', width: 12 },
+            { header: 'Keterangan', key: 'keterangan', width: 40 },
+            { header: 'Nominal', key: 'nominal', width: 20 }
+        ];
+        sheetPengeluaran.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
+        sheetPengeluaran.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EF4444' } };
+        (pengeluaran || []).forEach(item => {
+            const row = sheetPengeluaran.addRow({
+                tanggal: new Date(item.tanggal).toLocaleString('id-ID'),
+                bulan: item.bulan,
+                keterangan: item.keterangan,
+                nominal: item.nominal
+            });
+            row.getCell('nominal').numFmt = 'Rp #,##0';
         });
-        row.getCell('nominal').numFmt = 'Rp #,##0';
-    });
-    
-    // Sheet 3: Detail Pemasukan Lain-lain
-    const sheetPemasukanLain = workbook.addWorksheet('Pemasukan Lain-lain');
-    sheetPemasukanLain.columns = [
-        { header: 'Tanggal', key: 'tanggal', width: 20 },
-        { header: 'Bulan', key: 'bulan', width: 12 },
-        { header: 'Keterangan', key: 'keterangan', width: 40 },
-        { header: 'Nominal', key: 'nominal', width: 20 }
-    ];
-    
-    sheetPemasukanLain.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
-    sheetPemasukanLain.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '10B981' } };
-    
-    pemasukanLain.forEach(item => {
-        const row = sheetPemasukanLain.addRow({
-            tanggal: new Date(item.tanggal).toLocaleString('id-ID'),
-            bulan: item.bulan,
-            keterangan: item.keterangan,
-            nominal: item.nominal
+
+        // Sheet 3: Detail Pemasukan Lain-lain
+        const sheetPemasukanLain = workbook.addWorksheet('Pemasukan Lain-lain');
+        sheetPemasukanLain.columns = [
+            { header: 'Tanggal', key: 'tanggal', width: 20 },
+            { header: 'Bulan', key: 'bulan', width: 12 },
+            { header: 'Keterangan', key: 'keterangan', width: 40 },
+            { header: 'Nominal', key: 'nominal', width: 20 }
+        ];
+        sheetPemasukanLain.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
+        sheetPemasukanLain.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '10B981' } };
+        (pemasukanLain || []).forEach(item => {
+            const row = sheetPemasukanLain.addRow({
+                tanggal: new Date(item.tanggal).toLocaleString('id-ID'),
+                bulan: item.bulan,
+                keterangan: item.keterangan,
+                nominal: item.nominal
+            });
+            row.getCell('nominal').numFmt = 'Rp #,##0';
         });
-        row.getCell('nominal').numFmt = 'Rp #,##0';
-    });
-    
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename=Laporan_Keuangan_Komplek_2026.xlsx');
-    await workbook.xlsx.write(res);
-    res.end();
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename=Laporan_Keuangan_Komplek_${TAHUN}.xlsx`);
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        console.error('Error download-keuangan:', err);
+        res.status(500).send('Gagal download keuangan: ' + err.message);
+    }
 });
 
+// ============================================================
+// START SERVER
+// ============================================================
 app.listen(PORT, () => {
     console.log(`Sistem berjalan di http://localhost:${PORT}`);
 });
+
 module.exports = app;

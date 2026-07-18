@@ -31,3 +31,5 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+gen_hash.js
+generate_hash.js
