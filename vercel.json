@@ -16,9 +16,9 @@
     }
   ],
   "env": {
+    "NODE_ENV": "production",
     "SUPABASE_URL": "@supabase_url",
     "SUPABASE_KEY": "@supabase_key",
-    "PASSWORD_ADMIN": "@password_admin",
     "SESSION_SECRET": "@session_secret"
   }
 }

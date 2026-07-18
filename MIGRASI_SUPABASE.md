@@ -81,8 +81,8 @@ WHERE username = 'admin';
 INSERT INTO admin (username, password_hash, nama_lengkap)
 VALUES (
     'admin2',
-    crypt('passwordnya', gen_salt('bf', 12)),
-    'Nama Admin Kedua'
+    crypt('231103', gen_salt('bf', 12)),
+    'Reza Admin'
 );
 ```
 

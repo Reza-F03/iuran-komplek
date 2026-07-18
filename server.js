@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const ExcelJS = require('exceljs');
-const session = require('express-session');
+const cookieSession = require('cookie-session');
 const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
@@ -24,11 +24,15 @@ app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 app.use(express.urlencoded({ extended: true }));
 
-// Setup Session Middleware
-app.use(session({
+// Setup Cookie Session — aman untuk Vercel serverless (tidak butuh memory store)
+// Session disimpan di signed cookie di browser, tidak di server
+app.use(cookieSession({
+    name: 'iuran_session',
     secret: process.env.SESSION_SECRET || 'kunci-rahasia-komplek',
-    resave: false,
-    saveUninitialized: true
+    maxAge: 8 * 60 * 60 * 1000, // 8 jam
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax'
 }));
 
 // ============================================================
@@ -223,7 +227,7 @@ app.post('/login', async (req, res) => {
 
 // Logout Admin
 app.get('/logout', (req, res) => {
-    req.session.destroy();
+    req.session = null; // cookie-session: set null untuk hapus session
     res.redirect('/');
 });
 
