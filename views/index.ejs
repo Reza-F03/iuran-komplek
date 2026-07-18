@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#4F46E5">
+    <title>Aplikasi Monitoring Pembayaran Iuran Komplek Masihiro Residence</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom CSS untuk Mobile Optimization */
+        @media (max-width: 640px) {
+            /* Prevent zoom on input focus */
+            input, select, textarea {
+                font-size: 16px !important;
+            }
+            
+            /* Smooth scrolling */
+            html {
+                scroll-behavior: smooth;
+            }
+            
+            /* Better touch targets */
+            button, a, input[type="submit"] {
+                min-height: 44px;
+                min-width: 44px;
+            }
+            
+            /* Hide horizontal scrollbar but keep functionality */
+            .overflow-x-auto::-webkit-scrollbar {
+                height: 4px;
+            }
+            
+            .overflow-x-auto::-webkit-scrollbar-thumb {
+                background: #cbd5e0;
+                border-radius: 4px;
+            }
+        }
+        
+        /* Loading animation */
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Better modal backdrop for mobile */
+        .modal-backdrop {
+            backdrop-filter: blur(4px);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-4 sm:p-6">
+    <div class="max-w-5xl mx-auto">
+        
+        <!-- Header & Login Area -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">Aplikasi Monitoring Pembayaran Iuran</h1>
+                <h2 class="text-xl font-semibold text-indigo-600 mt-1">Komplek Masihiro Residence</h2>
+                <p class="text-sm text-gray-500 mt-2">Status Anda: 
+                    <span class="font-semibold <%= isAdmin ? 'text-indigo-600' : 'text-gray-600' %>">
+                        <%= isAdmin ? '🤠 Administrator (Akses Penuh)' : '👤 Warga Biasa (Mode Lihat)' %>
+                    </span>
+                </p>
+                <p class="text-xs text-gray-400 mt-1">
+                    📅 Menampilkan iuran bulan <strong><%= bulanBerjalan %> 2026</strong> | Riwayat bulan lalu tersimpan otomatis
+                </p>
+            </div>
+            
+            <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <a href="/download-excel" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
+                    📊 Rekap Iuran Bulanan
+                </a>
+                
+                <!-- Tombol Riwayat Keuangan untuk SEMUA USER (Warga & Admin) -->
+                <button onclick="bukaRiwayatKeuangan()" class="bg-purple-600 hover:bg-purple-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
+                    💰 Riwayat Keuangan
+                </button>
+                
+                <!-- Tombol Riwayat Pengeluaran untuk SEMUA USER (Warga & Admin) -->
+                <button onclick="bukaListPengeluaran()" class="bg-orange-600 hover:bg-orange-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
+                    📋 Riwayat Pengeluaran
+                </button>
+                
+                <!-- Tombol Riwayat Data Iuran untuk SEMUA USER (Warga & Admin) -->
+                <button onclick="<%= isAdmin ? 'bukaRiwayat()' : 'bukaRiwayatWarga()' %>" class="bg-amber-600 hover:bg-amber-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
+                    📜 Riwayat Data Iuran
+                </button>
+                
+                <% if (!isAdmin) { %>
+                    <!-- Form Login Sederhana untuk Admin -->
+                    <form action="/login" method="POST" class="flex items-center gap-2 border border-gray-200 p-1.5 rounded-xl bg-gray-50 w-full sm:w-auto">
+                        <input type="password" name="password" placeholder="Password Admin..." required
+                            class="bg-transparent text-sm px-2 py-1 outline-none w-full sm:w-36 text-gray-700 focus:ring-0">
+                        <button type="submit" class="bg-gray-800 hover:bg-gray-900 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition shrink-0">
+                            Login Admin
+                        </button>
+                    </form>
+                <% } else { %>
+                    <a href="/logout" class="bg-rose-100 hover:bg-rose-200 text-rose-700 font-medium px-4 py-2 rounded-xl text-sm transition">
+                        Logout
+                    </a>
+                <% } %>
+            </div>
+        </div>
+
+        <!-- Panel Tambah Warga (HANYA MUNCUL JIKA ADMIN) -->
+        <% if (isAdmin) { %>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4">🏠 Tambah Rumah/Warga Baru</h2>
+                <form action="/tambah-warga" method="POST" class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    <input type="text" name="no_rumah" placeholder="Nomor Rumah (Contoh: B-12)" required
+                        class="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input type="text" name="nama" placeholder="Nama Lengkap Pemilik" required
+                        class="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <select name="nominal_iuran" required
+                        class="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="30000">Rp 30.000</option>
+                        <option value="50000">Rp 50.000</option>
+                        <option value="100000">Rp 100.000</option>
+                    </select>
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl text-sm transition">
+                        + Daftarkan Rumah
+                    </button>
+                </form>
+            </div>
+        <% } %>
+
+        <!-- Dashboard Keuangan (HANYA ADMIN) -->
+        <% if (isAdmin) { %>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                <!-- Total Pemasukan Iuran -->
+                <div class="bg-gradient-to-br from-emerald-500 to-green-600 p-6 rounded-2xl shadow-lg text-white">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-medium opacity-90">💵 Pemasukan Iuran</span>
+                    </div>
+                    <p class="text-2xl font-bold">Rp <%= keuangan.totalPemasukanIuran.toLocaleString('id-ID') %></p>
+                    <p class="text-xs opacity-75 mt-1"><%= bulanBerjalan %> 2026</p>
+                </div>
+                
+                <!-- Total Pemasukan Lain-lain -->
+                <div class="bg-gradient-to-br from-teal-500 to-cyan-600 p-6 rounded-2xl shadow-lg text-white">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-medium opacity-90">💰 Pemasukan Lain</span>
+                    </div>
+                    <p class="text-2xl font-bold">Rp <%= keuangan.totalPemasukanLain.toLocaleString('id-ID') %></p>
+                    <p class="text-xs opacity-75 mt-1"><%= bulanBerjalan %> 2026</p>
+                </div>
+                
+                <!-- Total Pengeluaran -->
+                <div class="bg-gradient-to-br from-red-500 to-rose-600 p-6 rounded-2xl shadow-lg text-white">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-medium opacity-90">💸 Pengeluaran</span>
+                    </div>
+                    <p class="text-2xl font-bold">Rp <%= keuangan.totalPengeluaran.toLocaleString('id-ID') %></p>
+                    <p class="text-xs opacity-75 mt-1"><%= bulanBerjalan %> 2026</p>
+                </div>
+                
+                <!-- Sisa Kas Bulan Ini -->
+                <div class="bg-gradient-to-br from-blue-500 to-indigo-600 p-6 rounded-2xl shadow-lg text-white">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-medium opacity-90">🏦 Kas/bulan</span>
+                    </div>
+                    <p class="text-2xl font-bold">Rp <%= keuangan.sisaKas.toLocaleString('id-ID') %></p>
+                    <p class="text-xs opacity-75 mt-1">Bulan <%= bulanBerjalan %></p>
+                </div>
+
+                <!-- Total Kumulatif Kas -->
+                <div class="bg-gradient-to-br from-purple-600 to-pink-600 p-6 rounded-2xl shadow-lg text-white">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-medium opacity-90">🎯 Total Kas</span>
+                    </div>
+                    <p class="text-2xl font-bold">Rp <%= totalKumulatif.toLocaleString('id-ID') %></p>
+                    <p class="text-xs opacity-75 mt-1">Jan - <%= bulanBerjalan %></p>
+                </div>
+            </div>
+
+            <!-- Tombol Kelola Keuangan -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-3">
+                <button onclick="bukaFormPemasukanLain()" class="bg-teal-600 hover:bg-teal-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
+                    ➕ Tambah Pemasukan Lain
+                </button>
+                <button onclick="bukaFormPengeluaran()" class="bg-rose-600 hover:bg-rose-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
+                    ➕ Tambah Pengeluaran
+                </button>
+                <button onclick="bukaListPemasukanLain()" class="bg-cyan-600 hover:bg-cyan-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
+                    📋 Riwayat Pemasukan Lain
+                </button>
+                <button onclick="bukaListPengeluaran()" class="bg-orange-600 hover:bg-orange-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
+                    📋 Riwayat Pengeluaran
+                </button>
+                <button onclick="bukaRiwayatKeuangan()" class="bg-purple-600 hover:bg-purple-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
+                    💰 Riwayat Keuangan
+                </button>
+                <button onclick="<%= isAdmin ? 'bukaRiwayat()' : 'bukaRiwayatWarga()' %>" class="bg-amber-600 hover:bg-amber-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
+                    📜 Riwayat Data Iuran
+                </button>
+            </div>
+        <% } %>
+
+        <!-- Tabel Monitoring Utama -->
+       <!-- Tabel Monitoring Utama -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <!-- Search Bar -->
+            <div class="p-4 border-b border-gray-100 bg-gray-50">
+                <div class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                    <div class="flex-1">
+                        <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="🔍 Cari nomor rumah atau nama warga..." 
+                            class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                    </div>
+                    <% if (isAdmin) { %>
+                        <select id="filterStatus" onchange="filterTable()" class="border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="">📊 Semua Status</option>
+                            <option value="Lunas">✓ Lunas</option>
+                            <option value="Belum Bayar">✗ Belum Bayar</option>
+                        </select>
+                        <select id="filterNominal" onchange="filterTable()" class="border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="">💰 Semua Nominal</option>
+                            <option value="30000">Rp 30.000</option>
+                            <option value="50000">Rp 50.000</option>
+                            <option value="100000">Rp 100.000</option>
+                        </select>
+                    <% } %>
+                </div>
+                <p id="searchResult" class="text-xs text-gray-500 mt-2 hidden">Ditemukan <span id="resultCount">0</span> data</p>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-50 text-gray-600 text-sm font-semibold border-b border-gray-100">
+                            <th class="p-4">No. Rumah</th>
+                            <th class="p-4">Nama Warga</th>
+                            <% if (isAdmin) { %><th class="p-4 text-center">Nominal Iuran</th><% } %>
+                            <!-- Kolom untuk BULAN BERJALAN saja -->
+                            <th class="p-4 text-center">Iuran <%= bulanBerjalan %> 2026</th>
+                            <% if (isAdmin) { %><th class="p-4 text-center">Tindakan</th><% } %>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 text-gray-700 text-sm" id="tableBody">
+                        <% warga.forEach(function(item) { %>
+                            <!-- BARIS MODE TAMPILAN BIASA -->
+                            <tr id="row-view-<%= item.id %>" class="hover:bg-gray-50/50 transition table-row" 
+                                data-rumah="<%= item.no_rumah.toLowerCase() %>" 
+                                data-nama="<%= item.nama.toLowerCase() %>" 
+                                data-status="<%= item['status_' + bulanBerjalan] || 'Belum Bayar' %>"
+                                data-nominal="<%= item.nominal_iuran || 50000 %>">
+                                <td class="p-4 font-bold text-gray-900"><%= item.no_rumah %></td>
+                                <td class="p-4"><%= item.nama %></td>
+                                
+                                <!-- Kolom Nominal Iuran (hanya untuk admin) -->
+                                <% if (isAdmin) { %>
+                                    <td class="p-4 text-center">
+                                        <span class="text-xs font-semibold px-2.5 py-1 rounded-lg <%= item.nominal_iuran === 100000 ? 'bg-purple-100 text-purple-800' : item.nominal_iuran === 50000 ? 'bg-blue-100 text-blue-800' : 'bg-teal-100 text-teal-800' %>">
+                                            Rp <%= (item.nominal_iuran || 50000).toLocaleString('id-ID') %>
+                                        </span>
+                                    </td>
+                                <% } %>
+                                
+                                <!-- Kolom Status Iuran untuk BULAN BERJALAN saja -->
+                                <% 
+                                    var statusBulan = item['status_' + bulanBerjalan] || 'Belum Bayar';
+                                %>
+                                <td class="p-4 text-center">
+                                    <% if (isAdmin) { %>
+                                        <form action="/update-iuran" method="POST" class="inline-block">
+                                            <input type="hidden" name="id" value="<%= item.id %>">
+                                            <input type="hidden" name="bulan" value="<%= bulanBerjalan %>">
+                                            <select name="status" onchange="this.form.submit()" 
+                                                class="text-xs rounded-lg px-2.5 py-1 font-semibold border-0 cursor-pointer focus:ring-2 focus:ring-indigo-500
+                                                <%= statusBulan === 'Lunas' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' %>">
+                                                <option value="Lunas" <%= statusBulan === 'Lunas' ? 'selected' : '' %>>Lunas</option>
+                                                <option value="Belum Bayar" <%= statusBulan === 'Belum Bayar' ? 'selected' : '' %>>Belum Bayar</option>
+                                            </select>
+                                        </form>
+                                    <% } else { %>
+                                        <span class="text-xs font-semibold px-2.5 py-1 rounded-lg <%= statusBulan === 'Lunas' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' %>">
+                                            <%= statusBulan %>
+                                        </span>
+                                    <% } %>
+                                </td>
+
+                                <!-- Tombol Tindakan Admin -->
+                                <% if (isAdmin) { %>
+                                    <td class="p-4 text-center flex justify-center gap-3">
+                                        <button type="button" onclick="bukaModeEdit('<%= item.id %>')" class="text-xs font-medium text-indigo-600 hover:text-indigo-800 hover:underline">
+                                            Edit
+                                        </button>
+                                        <form action="/hapus-warga" method="POST" onsubmit="return confirm('Hapus data rumah <%= item.no_rumah %>?')" class="inline-block">
+                                            <input type="hidden" name="id" value="<%= item.id %>">
+                                            <button type="submit" class="text-xs font-medium text-rose-600 hover:text-rose-800 hover:underline">
+                                                Hapus
+                                            </button>
+                                        </form>
+                                    </td>
+                                <% } %>
+                            </tr>
+
+                            <!-- BARIS MODE EDIT INLINE -->
+                            <% if (isAdmin) { %>
+                                <tr id="row-edit-<%= item.id %>" class="bg-indigo-50/50 hidden">
+                                    <form action="/edit-warga" method="POST">
+                                        <input type="hidden" name="id" value="<%= item.id %>">
+                                        <td class="p-3">
+                                            <input type="text" name="no_rumah" value="<%= item.no_rumah %>" required
+                                                class="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-indigo-500">
+                                        </td>
+                                        <td class="p-3">
+                                            <input type="text" name="nama" value="<%= item.nama %>" required
+                                                class="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-indigo-500">
+                                        </td>
+                                        <td class="p-3">
+                                            <select name="nominal_iuran" required
+                                                class="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-indigo-500">
+                                                <option value="30000" <%= item.nominal_iuran === 30000 ? 'selected' : '' %>>Rp 30.000</option>
+                                                <option value="50000" <%= item.nominal_iuran === 50000 ? 'selected' : '' %>>Rp 50.000</option>
+                                                <option value="100000" <%= item.nominal_iuran === 100000 ? 'selected' : '' %>>Rp 100.000</option>
+                                            </select>
+                                        </td>
+                                        
+                                        <!-- Kolom status dikunci otomatis saat mode edit -->
+                                        <td class="p-3 text-center text-gray-400 text-xs italic">Kunci saat edit</td>
+                                        
+                                        <td class="p-3 text-center flex justify-center gap-2">
+                                            <button type="submit" class="bg-indigo-600 text-white text-xs px-2.5 py-1 rounded hover:bg-indigo-700 transition font-medium">
+                                                Simpan
+                                            </button>
+                                            <button type="button" onclick="tutupModeEdit('<%= item.id %>')" class="bg-gray-200 text-gray-700 text-xs px-2.5 py-1 rounded hover:bg-gray-300 transition font-medium">
+                                                Batal
+                                            </button>
+                                        </td>
+                                    </form>
+                                </tr>
+                            <% } %>
+                        <% }); %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Footer Copyright -->
+    <footer class="max-w-5xl mx-auto mt-8 mb-4">
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <p class="text-center text-sm text-gray-600">
+                © 2026 <strong class="text-indigo-600">Reza</strong> - Komplek Masihiro Residence. All rights reserved.
+            </p>
+        </div>
+    </footer>
+
+    <!-- Modal Riwayat Bulan untuk WARGA (Read-Only) -->
+    <% if (!isAdmin) { %>
+    <div id="modalRiwayatWarga" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <!-- Header Modal -->
+            <div class="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h2 class="text-2xl font-bold">📜 Riwayat Data Iuran Saya</h2>
+                        <p class="text-sm text-indigo-100 mt-1">Data pembayaran iuran Anda dari Januari sampai Desember</p>
+                    </div>
+                    <button onclick="tutupRiwayatWarga()" class="text-white hover:text-indigo-200 text-2xl font-bold transition">
+                        ✕
+                    </button>
+                </div>
+            </div>
+
+            <!-- Isi Modal -->
+            <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                <!-- Filter Bulan -->
+                <div class="mb-6">
+                    <label class="block text-sm font-semibold text-gray-700 mb-3">Pilih Bulan untuk Ditampilkan:</label>
+                    <div class="flex flex-wrap gap-2">
+                        <% semuaBulan.forEach(function(bulan) { 
+                            var isCurrentMonth = bulan === bulanBerjalan;
+                        %>
+                            <button 
+                                onclick="tampilkanBulanWarga('<%= bulan %>')" 
+                                class="px-4 py-2 rounded-lg text-sm font-medium transition <%= isCurrentMonth ? 'bg-indigo-100 text-indigo-700 border-2 border-indigo-500' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' %>">
+                                <%= bulan %> <%= isCurrentMonth ? '(Berjalan)' : '' %>
+                            </button>
+                        <% }); %>
+                    </div>
+                </div>
+
+                <!-- Tabel Data per Bulan -->
+                <% semuaBulan.forEach(function(bulan) { %>
+                    <div id="tabel-warga-<%= bulan %>" class="hidden">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold text-gray-800">Data Iuran Bulan <%= bulan %> 2026</h3>
+                        </div>
+
+                        <!-- Search Bar untuk Modal Warga -->
+                        <div class="mb-4">
+                            <input type="text" id="searchModalWarga<%= bulan %>" onkeyup="filterModalTableWarga('<%= bulan %>')" 
+                                placeholder="🔍 Cari nomor rumah atau nama warga..." 
+                                class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <p id="searchResultWarga<%= bulan %>" class="text-xs text-gray-500 mt-2 hidden">Ditemukan <span id="resultCountWarga<%= bulan %>">0</span> data</p>
+                        </div>
+                        
+                        <div class="overflow-x-auto border border-gray-200 rounded-xl">
+                            <table class="w-full text-left">
+                                <thead>
+                                    <tr class="bg-gray-50 border-b border-gray-200">
+                                        <th class="p-3 text-sm font-semibold text-gray-700">No. Rumah</th>
+                                        <th class="p-3 text-sm font-semibold text-gray-700">Nama Warga</th>
+                                        <th class="p-3 text-sm font-semibold text-gray-700 text-center">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100" id="tableBodyWarga<%= bulan %>">
+                                    <% warga.forEach(function(item) { 
+                                        var status = item['status_' + bulan] || '-';
+                                    %>
+                                        <tr class="hover:bg-gray-50 row-warga-<%= bulan %>" 
+                                            data-rumah="<%= item.no_rumah.toLowerCase() %>" 
+                                            data-nama="<%= item.nama.toLowerCase() %>">
+                                            <td class="p-3 text-sm font-semibold text-gray-900"><%= item.no_rumah %></td>
+                                            <td class="p-3 text-sm text-gray-700"><%= item.nama %></td>
+                                            <td class="p-3 text-center">
+                                                <!-- Read-only badge untuk warga -->
+                                                <span class="text-xs rounded-lg px-2.5 py-1.5 font-semibold <%= status === 'Lunas' ? 'bg-green-100 text-green-800' : status === 'Belum Bayar' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-500' %>">
+                                                    <%= status === 'Lunas' ? '✓ Lunas' : status === 'Belum Bayar' ? '✗ Belum Bayar' : '-' %>
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    <% }); %>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Statistik Ringkas -->
+                        <div class="mt-4 grid grid-cols-2 gap-4">
+                            <% 
+                                var totalWarga = warga.length;
+                                var lunas = warga.filter(function(w) { return w['status_' + bulan] === 'Lunas'; }).length;
+                                var belumBayar = warga.filter(function(w) { return w['status_' + bulan] === 'Belum Bayar'; }).length;
+                                var persentaseLunas = totalWarga > 0 ? Math.round((lunas / totalWarga) * 100) : 0;
+                            %>
+                            <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                                <p class="text-xs text-green-600 font-medium">Total Lunas</p>
+                                <p class="text-2xl font-bold text-green-700"><%= lunas %> <span class="text-sm text-green-600">/ <%= totalWarga %></span></p>
+                            </div>
+                            <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                                <p class="text-xs text-red-600 font-medium">Belum Bayar</p>
+                                <p class="text-2xl font-bold text-red-700"><%= belumBayar %> <span class="text-sm text-red-600">/ <%= totalWarga %></span></p>
+                            </div>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="mt-4">
+                            <div class="flex justify-between text-xs text-gray-600 mb-1">
+                                <span>Tingkat Pembayaran Warga</span>
+                                <span class="font-semibold"><%= persentaseLunas %>%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                                <div class="bg-gradient-to-r from-green-500 to-emerald-600 h-3 rounded-full transition-all duration-500" style="width: <%= persentaseLunas %>%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Info Box untuk Warga -->
+                        <div class="mt-4 bg-blue-50 border border-blue-200 rounded-xl p-4">
+                            <p class="text-sm text-blue-900">
+                                <strong>💡 Transparansi:</strong> Anda dapat melihat data pembayaran iuran semua warga komplek dari bulan <%= bulan %>. 
+                                Data ini diperbarui secara real-time oleh admin. Jika ada perbedaan data, silakan hubungi admin.
+                            </p>
+                        </div>
+                    </div>
+                <% }); %>
+
+                <!-- Pesan Default -->
+                <div id="pesan-pilih-warga" class="text-center py-12">
+                    <div class="text-6xl mb-4">📊</div>
+                    <p class="text-gray-500 text-sm">Pilih bulan di atas untuk melihat data riwayat iuran</p>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="border-t border-gray-200 p-6 bg-gray-50">
+                <p class="text-sm text-gray-600 text-center">
+                    🔍 <strong>Informasi:</strong> Anda dapat melihat status pembayaran seluruh warga untuk transparansi. Untuk update status pembayaran Anda, hubungi admin.
+                </p>
+            </div>
+        </div>
+    </div>
+    <% } %>
+
+    <!-- Modal Riwayat Bulan (Hanya untuk Admin) -->
+    <% if (isAdmin) { %>
+    <div id="modalRiwayat" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <!-- Header Modal -->
+            <div class="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h2 class="text-2xl font-bold">📜 Riwayat Data Iuran</h2>
+                        <p class="text-sm text-indigo-100 mt-1">Data bulan-bulan sebelumnya | Klik dropdown untuk ubah status</p>
+                    </div>
+                    <button onclick="tutupRiwayat()" class="text-white hover:text-indigo-200 text-2xl font-bold transition">
+                        ✕
+                    </button>
+                </div>
+            </div>
+
+            <!-- Isi Modal -->
+            <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                <!-- Filter Bulan -->
+                <div class="mb-6">
+                    <label class="block text-sm font-semibold text-gray-700 mb-3">Pilih Bulan untuk Ditampilkan:</label>
+                    <div class="flex flex-wrap gap-2">
+                        <% semuaBulan.forEach(function(bulan) { 
+                            var isCurrentMonth = bulan === bulanBerjalan;
+                        %>
+                            <button 
+                                onclick="tampilkanBulan('<%= bulan %>')" 
+                                class="px-4 py-2 rounded-lg text-sm font-medium transition <%= isCurrentMonth ? 'bg-indigo-100 text-indigo-700 border-2 border-indigo-500' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' %>">
+                                <%= bulan %> <%= isCurrentMonth ? '(Berjalan)' : '' %>
+                            </button>
+                        <% }); %>
+                    </div>
+                </div>
+
+                <!-- Tabel Data per Bulan -->
+                <% semuaBulan.forEach(function(bulan) { %>
+                    <div id="tabel-<%= bulan %>" class="hidden">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold text-gray-800">Data Iuran Bulan <%= bulan %> 2026</h3>
+                            <a href="/download-excel-bulan/<%= bulan %>" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium px-3 py-2 rounded-lg transition">
+                                📥 Download <%= bulan %>
+                            </a>
+                        </div>
+
+                        <!-- Search Bar untuk Modal -->
+                        <div class="mb-4">
+                            <input type="text" id="searchModal<%= bulan %>" onkeyup="filterModalTable('<%= bulan %>')" 
+                                placeholder="🔍 Cari nomor rumah atau nama warga..." 
+                                class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        
+                        <div class="overflow-x-auto border border-gray-200 rounded-xl">
+                            <table class="w-full text-left">
+                                <thead>
+                                    <tr class="bg-gray-50 border-b border-gray-200">
+                                        <th class="p-3 text-sm font-semibold text-gray-700">No. Rumah</th>
+                                        <th class="p-3 text-sm font-semibold text-gray-700">Nama Warga</th>
+                                        <th class="p-3 text-sm font-semibold text-gray-700 text-center">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    <% warga.forEach(function(item) { 
+                                        var status = item['status_' + bulan] || '-';
+                                    %>
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="p-3 text-sm font-semibold text-gray-900"><%= item.no_rumah %></td>
+                                            <td class="p-3 text-sm text-gray-700"><%= item.nama %></td>
+                                            <td class="p-3 text-center">
+                                                <!-- Form untuk update status (ADMIN bisa edit bulan lalu) -->
+                                                <form action="/update-iuran" method="POST" class="inline-block">
+                                                    <input type="hidden" name="id" value="<%= item.id %>">
+                                                    <input type="hidden" name="bulan" value="<%= bulan %>">
+                                                    <select name="status" onchange="this.form.submit()" 
+                                                        class="text-xs rounded-lg px-2.5 py-1.5 font-semibold border-0 cursor-pointer focus:ring-2 focus:ring-indigo-500 <%= status === 'Lunas' ? 'bg-green-100 text-green-800' : status === 'Belum Bayar' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-500' %>">
+                                                        <option value="Lunas" <%= status === 'Lunas' ? 'selected' : '' %>>✓ Lunas</option>
+                                                        <option value="Belum Bayar" <%= status === 'Belum Bayar' || status === '-' ? 'selected' : '' %>>✗ Belum Bayar</option>
+                                                    </select>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    <% }); %>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Statistik Ringkas -->
+                        <div class="mt-4 grid grid-cols-2 gap-4">
+                            <% 
+                                var totalWarga = warga.length;
+                                var lunas = warga.filter(function(w) { return w['status_' + bulan] === 'Lunas'; }).length;
+                                var belumBayar = warga.filter(function(w) { return w['status_' + bulan] === 'Belum Bayar'; }).length;
+                                var persentaseLunas = totalWarga > 0 ? Math.round((lunas / totalWarga) * 100) : 0;
+                            %>
+                            <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                                <p class="text-xs text-green-600 font-medium">Total Lunas</p>
+                                <p class="text-2xl font-bold text-green-700"><%= lunas %> <span class="text-sm text-green-600">/ <%= totalWarga %></span></p>
+                            </div>
+                            <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                                <p class="text-xs text-red-600 font-medium">Belum Bayar</p>
+                                <p class="text-2xl font-bold text-red-700"><%= belumBayar %> <span class="text-sm text-red-600">/ <%= totalWarga %></span></p>
+                            </div>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="mt-4">
+                            <div class="flex justify-between text-xs text-gray-600 mb-1">
+                                <span>Tingkat Pembayaran</span>
+                                <span class="font-semibold"><%= persentaseLunas %>%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                                <div class="bg-gradient-to-r from-green-500 to-emerald-600 h-3 rounded-full transition-all duration-500" style="width: <%= persentaseLunas %>%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Info Box untuk Admin -->
+                        <div class="mt-4 bg-blue-50 border border-blue-200 rounded-xl p-4">
+                            <p class="text-sm text-blue-900">
+                                <strong>💡 Tip Admin:</strong> Anda bisa mengubah status pembayaran bulan <%= bulan %> dengan klik dropdown di kolom Status. 
+                                Perubahan akan otomatis tersimpan dan mempengaruhi perhitungan keuangan.
+                            </p>
+                        </div>
+                    </div>
+                <% }); %>
+
+                <!-- Pesan Default -->
+                <div id="pesan-pilih" class="text-center py-12">
+                    <div class="text-6xl mb-4">📊</div>
+                    <p class="text-gray-500 text-sm">Pilih bulan di atas untuk melihat data riwayat</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <% } %>
+
+    <!-- Modal Form Pemasukan Lain (Hanya untuk Admin) -->
+    <% if (isAdmin) { %>
+    <div id="modalPemasukanLain" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <!-- Header Modal -->
+            <div class="bg-gradient-to-r from-teal-600 to-cyan-600 p-6 text-white rounded-t-2xl">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-bold">➕ Tambah Pemasukan Lain-lain</h2>
+                    <button onclick="tutupFormPemasukanLain()" class="text-white hover:text-teal-200 text-2xl font-bold transition">
+                        ✕
+                    </button>
+                </div>
+            </div>
+
+            <!-- Form Pemasukan Lain -->
+            <form action="/tambah-pemasukan-lain" method="POST" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Keterangan Pemasukan</label>
+                    <input type="text" name="keterangan" placeholder="Contoh: Sewa fasilitas, Denda keterlambatan, dll" required
+                        class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Nominal (Rp)</label>
+                    <input type="number" name="nominal" placeholder="50000" min="0" required
+                        class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Bulan</label>
+                    <select name="bulan" required
+                        class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                        <% semuaBulan.forEach(function(bulan) { %>
+                            <option value="<%= bulan %>" <%= bulan === bulanBerjalan ? 'selected' : '' %>><%= bulan %> 2026</option>
+                        <% }); %>
+                    </select>
+                </div>
+                
+                <div class="flex gap-3 pt-2">
+                    <button type="submit" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-medium py-2.5 rounded-xl transition">
+                        Simpan Pemasukan
+                    </button>
+                    <button type="button" onclick="tutupFormPemasukanLain()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2.5 rounded-xl transition">
+                        Batal
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal List Pemasukan Lain (Hanya untuk Admin) -->
+    <div id="modalListPemasukanLain" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <!-- Header Modal -->
+            <div class="bg-gradient-to-r from-cyan-600 to-teal-600 p-6 text-white">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h2 class="text-2xl font-bold">📋 Daftar Pemasukan Lain-lain</h2>
+                        <p class="text-sm text-cyan-100 mt-1">Riwayat pemasukan di luar iuran warga (sewa, denda, dll)</p>
+                    </div>
+                    <button onclick="tutupListPemasukanLain()" class="text-white hover:text-cyan-200 text-2xl font-bold transition">
+                        ✕
+                    </button>
+                </div>
+            </div>
+
+            <!-- Isi Modal -->
+            <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                <% if (pemasukanLain.length === 0) { %>
+                    <div class="text-center py-12">
+                        <div class="text-6xl mb-4">💰</div>
+                        <p class="text-gray-500 text-sm">Belum ada data pemasukan lain-lain</p>
+                    </div>
+                <% } else { %>
+                    <div class="space-y-3">
+                        <% pemasukanLain.sort(function(a, b) { return new Date(b.tanggal) - new Date(a.tanggal); }).forEach(function(item) { %>
+                            <div class="border border-gray-200 rounded-xl p-4 hover:bg-gray-50 transition">
+                                <div class="flex justify-between items-start">
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2 mb-2">
+                                            <span class="text-xs font-semibold px-2.5 py-1 rounded-lg bg-cyan-100 text-cyan-700">
+                                                <%= item.bulan %>
+                                            </span>
+                                            <span class="text-xs text-gray-500">
+                                                <%= new Date(item.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) %>
+                                            </span>
+                                        </div>
+                                        <p class="font-semibold text-gray-800 mb-1"><%= item.keterangan %></p>
+                                        <p class="text-xl font-bold text-green-600">+ Rp <%= item.nominal.toLocaleString('id-ID') %></p>
+                                    </div>
+                                    <form action="/hapus-pemasukan-lain" method="POST" onsubmit="return confirm('Hapus pemasukan ini?')" class="ml-4">
+                                        <input type="hidden" name="id" value="<%= item.id %>">
+                                        <button type="submit" class="text-rose-600 hover:text-rose-800 text-sm font-medium hover:underline">
+                                            🗑️ Hapus
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        <% }); %>
+                    </div>
+                <% } %>
+            </div>
+
+            <!-- Footer -->
+            <div class="border-t border-gray-200 p-6 bg-gray-50">
+                <p class="text-sm text-gray-600 text-center">
+                    💡 <strong>Tip:</strong> Pemasukan lain-lain adalah pemasukan di luar iuran warga seperti sewa fasilitas, denda, sumbangan, dll
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Form Pengeluaran (Hanya untuk Admin) -->
+    <div id="modalPengeluaran" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <!-- Header Modal -->
+            <div class="bg-gradient-to-r from-rose-600 to-red-600 p-6 text-white rounded-t-2xl">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-bold">➕ Tambah Pengeluaran</h2>
+                    <button onclick="tutupFormPengeluaran()" class="text-white hover:text-rose-200 text-2xl font-bold transition">
+                        ✕
+                    </button>
+                </div>
+            </div>
+
+            <!-- Form Pengeluaran -->
+            <form action="/tambah-pengeluaran" method="POST" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Keterangan Pengeluaran</label>
+                    <input type="text" name="keterangan" placeholder="Contoh: Bayar listrik, Perbaikan jalan, dll" required
+                        class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Nominal (Rp)</label>
+                    <input type="number" name="nominal" placeholder="50000" min="0" required
+                        class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Bulan</label>
+                    <select name="bulan" required
+                        class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500">
+                        <% semuaBulan.forEach(function(bulan) { %>
+                            <option value="<%= bulan %>" <%= bulan === bulanBerjalan ? 'selected' : '' %>><%= bulan %> 2026</option>
+                        <% }); %>
+                    </select>
+                </div>
+                
+                <div class="flex gap-3 pt-2">
+                    <button type="submit" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-medium py-2.5 rounded-xl transition">
+                        Simpan Pengeluaran
+                    </button>
+                    <button type="button" onclick="tutupFormPengeluaran()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2.5 rounded-xl transition">
+                        Batal
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <% } %>
+
+    <!-- Modal List Pengeluaran (UNTUK SEMUA USER: Warga & Admin) -->
+    <div id="modalListPengeluaran" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <!-- Header Modal -->
+            <div class="bg-gradient-to-r from-orange-600 to-amber-600 p-6 text-white">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h2 class="text-2xl font-bold">📋 Daftar Pengeluaran</h2>
+                        <p class="text-sm text-orange-100 mt-1">Riwayat pengeluaran kas komplek</p>
+                    </div>
+                    <button onclick="tutupListPengeluaran()" class="text-white hover:text-orange-200 text-2xl font-bold transition">
+                        ✕
+                    </button>
+                </div>
+            </div>
+
+            <!-- Isi Modal -->
+            <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                <% if (pengeluaran.length === 0) { %>
+                    <div class="text-center py-12">
+                        <div class="text-6xl mb-4">💸</div>
+                        <p class="text-gray-500 text-sm">Belum ada data pengeluaran</p>
+                    </div>
+                <% } else { %>
+                    <div class="space-y-3">
+                        <% pengeluaran.sort(function(a, b) { return new Date(b.tanggal) - new Date(a.tanggal); }).forEach(function(item) { %>
+                            <div class="border border-gray-200 rounded-xl p-4 hover:bg-gray-50 transition">
+                                <div class="flex justify-between items-start">
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2 mb-2">
+                                            <span class="text-xs font-semibold px-2.5 py-1 rounded-lg bg-orange-100 text-orange-700">
+                                                <%= item.bulan %>
+                                            </span>
+                                            <span class="text-xs text-gray-500">
+                                                <%= new Date(item.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) %>
+                                            </span>
+                                        </div>
+                                        <p class="font-semibold text-gray-800 mb-1"><%= item.keterangan %></p>
+                                        <p class="text-xl font-bold text-red-600">- Rp <%= item.nominal.toLocaleString('id-ID') %></p>
+                                    </div>
+                                    <% if (isAdmin) { %>
+                                        <form action="/hapus-pengeluaran" method="POST" onsubmit="return confirm('Hapus pengeluaran ini?')" class="ml-4">
+                                            <input type="hidden" name="id" value="<%= item.id %>">
+                                            <button type="submit" class="text-rose-600 hover:text-rose-800 text-sm font-medium hover:underline">
+                                                🗑️ Hapus
+                                            </button>
+                                        </form>
+                                    <% } %>
+                                </div>
+                            </div>
+                        <% }); %>
+                    </div>
+                <% } %>
+            </div>
+
+            <!-- Footer -->
+            <div class="border-t border-gray-200 p-6 bg-gray-50">
+                <% if (isAdmin) { %>
+                    <p class="text-sm text-gray-600 text-center">
+                        💡 <strong>Tip:</strong> Klik "Hapus" untuk menghapus pengeluaran yang salah input
+                    </p>
+                <% } else { %>
+                    <p class="text-sm text-gray-600 text-center">
+                        🔍 <strong>Transparansi:</strong> Anda dapat melihat semua pengeluaran kas komplek secara detail
+                    </p>
+                <% } %>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Riwayat Keuangan (UNTUK SEMUA USER: Warga & Admin) -->
+    <div id="modalRiwayatKeuangan" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+            <!-- Header Modal -->
+            <div class="bg-gradient-to-r from-purple-600 to-indigo-600 p-6 text-white">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h2 class="text-2xl font-bold">📊 Riwayat Keuangan Komplek</h2>
+                        <p class="text-sm text-purple-100 mt-1">Januari - Desember 2026 | Pemasukan, Pengeluaran & Kas</p>
+                    </div>
+                    <button onclick="tutupRiwayatKeuangan()" class="text-white hover:text-purple-200 text-2xl font-bold transition">
+                        ✕
+                    </button>
+                </div>
+            </div>
+
+            <!-- Isi Modal -->
+            <div class="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+                <!-- Tabel Ringkasan Keuangan -->
+                <div class="overflow-x-auto border border-gray-200 rounded-xl mb-6">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="bg-gradient-to-r from-indigo-50 to-purple-50 border-b-2 border-indigo-200">
+                                <th class="p-4 text-sm font-bold text-gray-700">Bulan</th>
+                                <th class="p-4 text-sm font-bold text-gray-700 text-right">Pemasukan Iuran</th>
+                                <th class="p-4 text-sm font-bold text-gray-700 text-right">Pemasukan Lain</th>
+                                <th class="p-4 text-sm font-bold text-gray-700 text-right bg-green-50">Total Pemasukan</th>
+                                <th class="p-4 text-sm font-bold text-gray-700 text-right">Pengeluaran</th>
+                                <th class="p-4 text-sm font-bold text-gray-700 text-right">Kas/Bulan</th>
+                                <th class="p-4 text-sm font-bold text-gray-700 text-right bg-indigo-100">Total Kas</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            <% riwayatKeuangan.forEach(function(item) { 
+                                var isBulanBerjalan = item.bulan === bulanBerjalan;
+                            %>
+                                <tr class="hover:bg-gray-50 transition <%= isBulanBerjalan ? 'bg-yellow-50 border-l-4 border-yellow-500' : '' %>">
+                                    <td class="p-4">
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-semibold text-gray-800"><%= item.bulan %> 2026</span>
+                                            <% if (isBulanBerjalan) { %>
+                                                <span class="text-xs bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded-full font-semibold">Berjalan</span>
+                                            <% } %>
+                                        </div>
+                                    </td>
+                                    <td class="p-4 text-right">
+                                        <span class="text-sm text-emerald-600">Rp <%= item.pemasukanIuran.toLocaleString('id-ID') %></span>
+                                    </td>
+                                    <td class="p-4 text-right">
+                                        <span class="text-sm text-teal-600">Rp <%= item.pemasukanLain.toLocaleString('id-ID') %></span>
+                                    </td>
+                                    <td class="p-4 text-right bg-green-50">
+                                        <span class="font-semibold text-green-600">+ Rp <%= item.pemasukan.toLocaleString('id-ID') %></span>
+                                    </td>
+                                    <td class="p-4 text-right">
+                                        <span class="font-semibold text-red-600">- Rp <%= item.pengeluaran.toLocaleString('id-ID') %></span>
+                                    </td>
+                                    <td class="p-4 text-right">
+                                        <span class="font-bold <%= item.sisaKas >= 0 ? 'text-blue-600' : 'text-red-600' %>">
+                                            Rp <%= item.sisaKas.toLocaleString('id-ID') %>
+                                        </span>
+                                    </td>
+                                    <td class="p-4 text-right bg-indigo-50">
+                                        <span class="font-bold text-lg <%= item.kumulatif >= 0 ? 'text-indigo-700' : 'text-red-700' %>">
+                                            Rp <%= item.kumulatif.toLocaleString('id-ID') %>
+                                        </span>
+                                    </td>
+                                </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Statistik Ringkas -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <% 
+                        var totalPemasukanTahunan = riwayatKeuangan.reduce(function(sum, item) { return sum + item.pemasukan; }, 0);
+                        var totalPengeluaranTahunan = riwayatKeuangan.reduce(function(sum, item) { return sum + item.pengeluaran; }, 0);
+                        var kasTerakhir = riwayatKeuangan[riwayatKeuangan.length - 1].kumulatif;
+                        var bulanSurplus = riwayatKeuangan.filter(function(item) { return item.sisaKas > 0; }).length;
+                    %>
+                    
+                    <div class="bg-green-50 border-2 border-green-200 rounded-xl p-4 text-center">
+                        <p class="text-xs text-green-600 font-medium mb-1">Total Pemasukan (Jan-Des)</p>
+                        <p class="text-xl font-bold text-green-700">Rp <%= totalPemasukanTahunan.toLocaleString('id-ID') %></p>
+                    </div>
+                    
+                    <div class="bg-red-50 border-2 border-red-200 rounded-xl p-4 text-center">
+                        <p class="text-xs text-red-600 font-medium mb-1">Total Pengeluaran (Jan-Des)</p>
+                        <p class="text-xl font-bold text-red-700">Rp <%= totalPengeluaranTahunan.toLocaleString('id-ID') %></p>
+                    </div>
+                    
+                    <div class="bg-indigo-50 border-2 border-indigo-200 rounded-xl p-4 text-center">
+                        <p class="text-xs text-indigo-600 font-medium mb-1">Kas Akhir Tahun</p>
+                        <p class="text-xl font-bold text-indigo-700">Rp <%= kasTerakhir.toLocaleString('id-ID') %></p>
+                    </div>
+                    
+                    <div class="bg-purple-50 border-2 border-purple-200 rounded-xl p-4 text-center">
+                        <p class="text-xs text-purple-600 font-medium mb-1">Bulan Surplus</p>
+                        <p class="text-xl font-bold text-purple-700"><%= bulanSurplus %> / 12 Bulan</p>
+                    </div>
+                </div>
+
+                <!-- Info & Keterangan -->
+                <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+                    <h3 class="font-semibold text-blue-900 mb-2">📌 Keterangan:</h3>
+                    <ul class="text-sm text-blue-800 space-y-1">
+                        <li>• <strong>Pemasukan Iuran:</strong> Total iuran warga yang sudah lunas</li>
+                        <li>• <strong>Pemasukan Lain:</strong> Pemasukan di luar iuran (sewa fasilitas, denda, sumbangan, dll)</li>
+                        <li>• <strong>Total Pemasukan:</strong> Pemasukan Iuran + Pemasukan Lain</li>
+                        <li>• <strong>Pengeluaran:</strong> Total pengeluaran kas yang tercatat</li>
+                        <li>• <strong>Kas/Bulan:</strong> Total Pemasukan - Pengeluaran per bulan</li>
+                        <li>• <strong>Total Kas:</strong> Akumulasi kas dari Januari sampai bulan tersebut</li>
+                        <li>• Baris dengan highlight kuning = Bulan berjalan saat ini</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Footer dengan Tombol Download -->
+            <div class="border-t border-gray-200 p-6 bg-gray-50 flex justify-between items-center">
+                <p class="text-sm text-gray-600">
+                    <% if (isAdmin) { %>
+                        💡 <strong>Tip:</strong> Cek data dulu sebelum download Excel untuk memastikan data sudah benar
+                    <% } else { %>
+                        🔍 <strong>Transparansi:</strong> Anda dapat download laporan keuangan untuk arsip pribadi
+                    <% } %>
+                </p>
+                <div class="flex gap-3">
+                    <a href="/download-keuangan" class="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold px-6 py-3 rounded-xl shadow-lg transition flex items-center gap-2">
+                        <span>💾</span>
+                        <span>Download Excel</span>
+                    </a>
+                    <% if (!isAdmin) { %>
+                        <button onclick="tutupRiwayatKeuangan()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold px-6 py-3 rounded-xl transition">
+                            Tutup
+                        </button>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </div>
+
+	<script>
+        // Fungsi Filter/Search Tabel Utama
+        function filterTable() {
+            var searchInput = document.getElementById('searchInput').value.toLowerCase();
+            var filterStatus = document.getElementById('filterStatus') ? document.getElementById('filterStatus').value : '';
+            var filterNominal = document.getElementById('filterNominal') ? document.getElementById('filterNominal').value : '';
+            
+            var table = document.getElementById('tableBody');
+            var tr = table.getElementsByClassName('table-row');
+            var visibleCount = 0;
+            
+            for (var i = 0; i < tr.length; i++) {
+                var rumah = tr[i].getAttribute('data-rumah');
+                var nama = tr[i].getAttribute('data-nama');
+                var status = tr[i].getAttribute('data-status');
+                var nominal = tr[i].getAttribute('data-nominal');
+                
+                var matchSearch = rumah.indexOf(searchInput) > -1 || nama.indexOf(searchInput) > -1;
+                var matchStatus = filterStatus === '' || status === filterStatus;
+                var matchNominal = filterNominal === '' || nominal === filterNominal;
+                
+                if (matchSearch && matchStatus && matchNominal) {
+                    tr[i].style.display = '';
+                    visibleCount++;
+                } else {
+                    tr[i].style.display = 'none';
+                }
+            }
+            
+            // Show result count
+            var resultEl = document.getElementById('searchResult');
+            var countEl = document.getElementById('resultCount');
+            if (searchInput || filterStatus || filterNominal) {
+                resultEl.classList.remove('hidden');
+                countEl.textContent = visibleCount;
+            } else {
+                resultEl.classList.add('hidden');
+            }
+        }
+
+        // Fungsi Filter untuk Modal Warga
+        function filterModalTableWarga(bulan) {
+            var searchInput = document.getElementById('searchModalWarga' + bulan).value.toLowerCase();
+            var tbody = document.getElementById('tableBodyWarga' + bulan);
+            var tr = tbody.getElementsByClassName('row-warga-' + bulan);
+            var visibleCount = 0;
+            
+            for (var i = 0; i < tr.length; i++) {
+                var rumah = tr[i].getAttribute('data-rumah');
+                var nama = tr[i].getAttribute('data-nama');
+                
+                var matchSearch = rumah.indexOf(searchInput) > -1 || nama.indexOf(searchInput) > -1;
+                
+                if (matchSearch) {
+                    tr[i].style.display = '';
+                    visibleCount++;
+                } else {
+                    tr[i].style.display = 'none';
+                }
+            }
+            
+            // Show result count
+            var resultEl = document.getElementById('searchResultWarga' + bulan);
+            var countEl = document.getElementById('resultCountWarga' + bulan);
+            if (searchInput) {
+                resultEl.classList.remove('hidden');
+                countEl.textContent = visibleCount;
+            } else {
+                resultEl.classList.add('hidden');
+            }
+        }
+
+        function bukaModeEdit(id) {
+            document.getElementById('row-view-' + id).classList.add('hidden');
+            document.getElementById('row-edit-' + id).classList.remove('hidden');
+        }
+
+        function tutupModeEdit(id) {
+            document.getElementById('row-view-' + id).classList.remove('hidden');
+            document.getElementById('row-edit-' + id).classList.add('hidden');
+        }
+
+        // Fungsi untuk Modal Riwayat Warga (untuk NON-ADMIN)
+        function bukaRiwayatWarga() {
+            document.getElementById('modalRiwayatWarga').classList.remove('hidden');
+        }
+
+        function tutupRiwayatWarga() {
+            document.getElementById('modalRiwayatWarga').classList.add('hidden');
+            // Reset tampilan
+            sembunyikanSemuaTabelWarga();
+            document.getElementById('pesan-pilih-warga').classList.remove('hidden');
+        }
+
+        function sembunyikanSemuaTabelWarga() {
+            <% semuaBulan.forEach(function(bulan) { %>
+                var el = document.getElementById('tabel-warga-<%= bulan %>');
+                if (el) el.classList.add('hidden');
+            <% }); %>
+        }
+
+        function tampilkanBulanWarga(bulan) {
+            // Sembunyikan pesan default
+            document.getElementById('pesan-pilih-warga').classList.add('hidden');
+            
+            // Sembunyikan semua tabel
+            sembunyikanSemuaTabelWarga();
+            
+            // Tampilkan tabel bulan yang dipilih
+            document.getElementById('tabel-warga-' + bulan).classList.remove('hidden');
+        }
+
+        // Tutup modal jika klik di luar (untuk warga)
+        var modalRiwayatWarga = document.getElementById('modalRiwayatWarga');
+        if (modalRiwayatWarga) {
+            modalRiwayatWarga.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    tutupRiwayatWarga();
+                }
+            });
+        }
+
+        // Fungsi untuk Modal Riwayat Keuangan (UNTUK SEMUA USER)
+        function bukaRiwayatKeuangan() {
+            document.getElementById('modalRiwayatKeuangan').classList.remove('hidden');
+        }
+
+        function tutupRiwayatKeuangan() {
+            document.getElementById('modalRiwayatKeuangan').classList.add('hidden');
+        }
+
+        var modalRiwayatKeuangan = document.getElementById('modalRiwayatKeuangan');
+        if (modalRiwayatKeuangan) {
+            modalRiwayatKeuangan.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    tutupRiwayatKeuangan();
+                }
+            });
+        }
+
+        // Fungsi untuk Modal List Pengeluaran (UNTUK SEMUA USER)
+        function bukaListPengeluaran() {
+            document.getElementById('modalListPengeluaran').classList.remove('hidden');
+        }
+
+        function tutupListPengeluaran() {
+            document.getElementById('modalListPengeluaran').classList.add('hidden');
+        }
+
+        var modalListPengeluaran = document.getElementById('modalListPengeluaran');
+        if (modalListPengeluaran) {
+            modalListPengeluaran.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    tutupListPengeluaran();
+                }
+            });
+        }
+
+        <% if (isAdmin) { %>
+        // Fungsi untuk Modal Riwayat (Hanya untuk Admin)
+        function bukaRiwayat() {
+            document.getElementById('modalRiwayat').classList.remove('hidden');
+        }
+
+        function tutupRiwayat() {
+            document.getElementById('modalRiwayat').classList.add('hidden');
+            // Reset tampilan
+            sembunyikanSemuaTabel();
+            document.getElementById('pesan-pilih').classList.remove('hidden');
+        }
+
+        function sembunyikanSemuaTabel() {
+            <% semuaBulan.forEach(function(bulan) { %>
+                var el = document.getElementById('tabel-<%= bulan %>');
+                if (el) el.classList.add('hidden');
+            <% }); %>
+        }
+
+        function tampilkanBulan(bulan) {
+            // Sembunyikan pesan default
+            document.getElementById('pesan-pilih').classList.add('hidden');
+            
+            // Sembunyikan semua tabel
+            sembunyikanSemuaTabel();
+            
+            // Tampilkan tabel bulan yang dipilih
+            document.getElementById('tabel-' + bulan).classList.remove('hidden');
+        }
+
+        // Tutup modal jika klik di luar
+        var modalRiwayat = document.getElementById('modalRiwayat');
+        if (modalRiwayat) {
+            modalRiwayat.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    tutupRiwayat();
+                }
+            });
+        }
+
+        // Fungsi untuk Modal Pemasukan Lain (Hanya Admin)
+        function bukaFormPemasukanLain() {
+            document.getElementById('modalPemasukanLain').classList.remove('hidden');
+        }
+
+        function tutupFormPemasukanLain() {
+            document.getElementById('modalPemasukanLain').classList.add('hidden');
+        }
+
+        // Tutup modal form pemasukan lain jika klik di luar
+        var modalPemasukanLain = document.getElementById('modalPemasukanLain');
+        if (modalPemasukanLain) {
+            modalPemasukanLain.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    tutupFormPemasukanLain();
+                }
+            });
+        }
+
+        // Fungsi untuk Modal List Pemasukan Lain (Hanya Admin)
+        function bukaListPemasukanLain() {
+            document.getElementById('modalListPemasukanLain').classList.remove('hidden');
+        }
+
+        function tutupListPemasukanLain() {
+            document.getElementById('modalListPemasukanLain').classList.add('hidden');
+        }
+
+        // Tutup modal list pemasukan lain jika klik di luar
+        var modalListPemasukanLain = document.getElementById('modalListPemasukanLain');
+        if (modalListPemasukanLain) {
+            modalListPemasukanLain.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    tutupListPemasukanLain();
+                }
+            });
+        }
+
+        // Fungsi untuk Modal Pengeluaran (Hanya Admin)
+        function bukaFormPengeluaran() {
+            document.getElementById('modalPengeluaran').classList.remove('hidden');
+        }
+
+        function tutupFormPengeluaran() {
+            document.getElementById('modalPengeluaran').classList.add('hidden');
+        }
+
+        // Tutup modal form pengeluaran jika klik di luar
+        var modalPengeluaran = document.getElementById('modalPengeluaran');
+        if (modalPengeluaran) {
+            modalPengeluaran.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    tutupFormPengeluaran();
+                }
+            });
+        }
+        <% } %>
+    </script>
+</body>
+</html>
