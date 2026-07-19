@@ -31,12 +31,18 @@ app.use(express.urlencoded({ extended: true }));
 // Session disimpan di signed cookie di browser, tidak di server
 app.use(cookieSession({
     name: 'iuran_session',
-    secret: process.env.SESSION_SECRET || 'kunci-rahasia-komplek',
+    keys: [process.env.SESSION_SECRET || 'kunci-rahasia-komplek'],
     maxAge: 8 * 60 * 60 * 1000, // 8 jam
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: false,   // false agar bekerja di Vercel (sudah HTTPS di level proxy)
     sameSite: 'lax'
 }));
+
+// Perbaikan agar session bisa di-save ulang setiap request (Vercel serverless)
+app.use((req, res, next) => {
+    req.session.nowInMinutes = Math.floor(Date.now() / 60e3);
+    next();
+});
 
 // ============================================================
 // HELPER FUNCTIONS
@@ -132,6 +138,9 @@ function proteksiAdmin(req, res, next) {
 // Halaman Utama
 app.get('/', async (req, res) => {
     try {
+        // DEBUG SESSION — hapus setelah masalah terselesaikan
+        console.log('[SESSION DEBUG] isAdmin:', req.session.isAdmin, '| adminNama:', req.session.adminNama);
+
         const bulanBerjalan = getBulanBerjalan();
         const semuaBulan = getAllBulan();
 
@@ -206,7 +215,15 @@ app.post('/login', async (req, res) => {
             p_password: password
         });
 
+        // DEBUG LOG — hapus setelah masalah terselesaikan
+        console.log('[LOGIN DEBUG] username:', username.trim().toLowerCase());
+        console.log('[LOGIN DEBUG] supabase error:', JSON.stringify(error));
+        console.log('[LOGIN DEBUG] data:', JSON.stringify(data));
+        console.log('[LOGIN DEBUG] SUPABASE_URL set:', !!process.env.SUPABASE_URL);
+        console.log('[LOGIN DEBUG] SUPABASE_KEY set:', !!process.env.SUPABASE_KEY);
+
         if (error || !data || data.length === 0 || !data[0].valid) {
+            console.log('[LOGIN DEBUG] login ditolak — error:', !!error, '| data kosong:', !data || data.length === 0, '| valid:', data && data[0] ? data[0].valid : 'N/A');
             return res.redirect('/?login_error=1');
         }
 
@@ -214,6 +231,9 @@ app.post('/login', async (req, res) => {
         req.session.isAdmin = true;
         req.session.adminUsername = adminData.username;
         req.session.adminNama = adminData.nama_lengkap;
+
+        // DEBUG SESSION — hapus setelah masalah terselesaikan
+        console.log('[SESSION DEBUG] session setelah login:', JSON.stringify(req.session));
 
         // Update last_login
         await supabase
