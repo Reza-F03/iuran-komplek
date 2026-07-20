@@ -153,7 +153,11 @@
                     📜 Riwayat Data Iuran
                 </button>
             </div>
-        </div>iv class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
+        </div>
+
+        <!-- Panel Tambah Warga (HANYA MUNCUL JIKA ADMIN) -->
+        <% if (isAdmin) { %>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
                 <h2 class="text-lg font-semibold text-gray-800 mb-4">🏠 Tambah Rumah/Warga Baru</h2>
                 <form action="/tambah-warga" method="POST" class="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <input type="text" name="no_rumah" placeholder="Nomor Rumah (Contoh: B-12)" required
