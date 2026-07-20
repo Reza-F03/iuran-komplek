@@ -142,7 +142,12 @@
                 
                 <!-- Tombol Riwayat Keuangan untuk SEMUA USER (Warga & Admin) -->
                 <button onclick="bukaRiwayatKeuangan()" class="bg-purple-600 hover:bg-purple-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
-                    💰 Riwayat Keuangan
+                    💰 Rekapitulasi Keuangan
+                </button>
+                
+                <!-- Tombol Riwayat Pemasukan Lain untuk SEMUA USER (Warga & Admin) -->
+                <button onclick="bukaListPemasukanLain()" class="bg-cyan-600 hover:bg-cyan-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
+                    💵 Riwayat Pemasukan Lain
                 </button>
                 
                 <!-- Tombol Riwayat Pengeluaran untuk SEMUA USER (Warga & Admin) -->
@@ -156,28 +161,6 @@
                 </button>
             </div>
         </div>
-
-        <!-- Panel Tambah Warga (HANYA MUNCUL JIKA ADMIN) -->
-        <% if (isAdmin) { %>
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
-                <h2 class="text-lg font-semibold text-gray-800 mb-4">🏠 Tambah Rumah/Warga Baru</h2>
-                <form action="/tambah-warga" method="POST" class="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                    <input type="text" name="no_rumah" placeholder="Nomor Rumah (Contoh: B-12)" required
-                        class="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <input type="text" name="nama" placeholder="Nama Lengkap Pemilik" required
-                        class="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <select name="nominal_iuran" required
-                        class="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <option value="30000">Rp 30.000</option>
-                        <option value="50000">Rp 50.000</option>
-                        <option value="100000">Rp 100.000</option>
-                    </select>
-                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl text-sm transition">
-                        + Daftarkan Rumah
-                    </button>
-                </form>
-            </div>
-        <% } %>
 
         <!-- Dashboard Keuangan (HANYA ADMIN) -->
         <% if (isAdmin) { %>
@@ -236,18 +219,40 @@
                 <button onclick="bukaFormPengeluaran()" class="bg-rose-600 hover:bg-rose-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
                     ➕ Tambah Pengeluaran
                 </button>
-                <button onclick="bukaListPemasukanLain()" class="bg-cyan-600 hover:bg-cyan-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
+        <!--<button onclick="bukaListPemasukanLain()" class="bg-cyan-600 hover:bg-cyan-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
                     📋 Riwayat Pemasukan Lain
                 </button>
-                <button onclick="bukaListPengeluaran()" class="bg-orange-600 hover:bg-orange-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
+                 <button onclick="bukaListPengeluaran()" class="bg-orange-600 hover:bg-orange-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
                     📋 Riwayat Pengeluaran
                 </button>
                 <button onclick="bukaRiwayatKeuangan()" class="bg-purple-600 hover:bg-purple-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
-                    💰 Riwayat Keuangan
+                    💰 Rekapitulasi Keuangan
                 </button>
-                <button onclick="<%= isAdmin ? 'bukaRiwayat()' : 'bukaRiwayatWarga()' %>" class="bg-amber-600 hover:bg-amber-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
+                <!--<button onclick="<%= isAdmin ? 'bukaRiwayat()' : 'bukaRiwayatWarga()' %>" class="bg-amber-600 hover:bg-amber-700 text-white font-medium px-4 py-2 rounded-xl text-sm shadow-sm transition">
                     📜 Riwayat Data Iuran
-                </button>
+        </button>-->
+            </div>
+        <% } %>
+
+        <!-- Panel Tambah Warga (HANYA MUNCUL JIKA ADMIN) -->
+        <% if (isAdmin) { %>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4">🏠 Tambah Rumah/Warga Baru</h2>
+                <form action="/tambah-warga" method="POST" class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    <input type="text" name="no_rumah" placeholder="Nomor Rumah (Contoh: B-12)" required
+                        class="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input type="text" name="nama" placeholder="Nama Lengkap Pemilik" required
+                        class="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <select name="nominal_iuran" required
+                        class="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="30000">Rp 30.000</option>
+                        <option value="50000">Rp 50.000</option>
+                        <option value="100000">Rp 100.000</option>
+                    </select>
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl text-sm transition">
+                        + Daftarkan Rumah
+                    </button>
+                </form>
             </div>
         <% } %>
 
@@ -724,8 +729,9 @@
             </form>
         </div>
     </div>
+    <% } %>
 
-    <!-- Modal List Pemasukan Lain (Hanya untuk Admin) -->
+    <!-- Modal List Pemasukan Lain (UNTUK SEMUA USER: Warga & Admin) -->
     <div id="modalListPemasukanLain" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
             <!-- Header Modal -->
@@ -765,12 +771,14 @@
                                         <p class="font-semibold text-gray-800 mb-1"><%= item.keterangan %></p>
                                         <p class="text-xl font-bold text-green-600">+ Rp <%= item.nominal.toLocaleString('id-ID') %></p>
                                     </div>
-                                    <form action="/hapus-pemasukan-lain" method="POST" onsubmit="return confirm('Hapus pemasukan ini?')" class="ml-4">
-                                        <input type="hidden" name="id" value="<%= item.id %>">
-                                        <button type="submit" class="text-rose-600 hover:text-rose-800 text-sm font-medium hover:underline">
-                                            🗑️ Hapus
-                                        </button>
-                                    </form>
+                                    <% if (isAdmin) { %>
+                                        <form action="/hapus-pemasukan-lain" method="POST" onsubmit="return confirm('Hapus pemasukan ini?')" class="ml-4">
+                                            <input type="hidden" name="id" value="<%= item.id %>">
+                                            <button type="submit" class="text-rose-600 hover:text-rose-800 text-sm font-medium hover:underline">
+                                                🗑️ Hapus
+                                            </button>
+                                        </form>
+                                    <% } %>
                                 </div>
                             </div>
                         <% }); %>
@@ -780,14 +788,21 @@
 
             <!-- Footer -->
             <div class="border-t border-gray-200 p-6 bg-gray-50">
-                <p class="text-sm text-gray-600 text-center">
-                    💡 <strong>Tip:</strong> Pemasukan lain-lain adalah pemasukan di luar iuran warga seperti sumbangan donatur dll
-                </p>
+                <% if (isAdmin) { %>
+                    <p class="text-sm text-gray-600 text-center">
+                        💡 <strong>Tip:</strong> Klik "Hapus" untuk menghapus pemasukan yang salah input
+                    </p>
+                <% } else { %>
+                    <p class="text-sm text-gray-600 text-center">
+                        🔍 <strong>Transparansi:</strong> Anda dapat melihat semua pemasukan lain-lain di luar iuran komplek secara detail
+                    </p>
+                <% } %>
             </div>
         </div>
     </div>
 
     <!-- Modal Form Pengeluaran (Hanya untuk Admin) -->
+    <% if (isAdmin) { %>
     <div id="modalPengeluaran" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full">
             <!-- Header Modal -->
@@ -914,7 +929,7 @@
             <div class="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 sm:p-6 text-white flex-shrink-0">
                 <div class="flex justify-between items-center">
                     <div>
-                        <h2 class="text-lg sm:text-2xl font-bold">📊 Riwayat Keuangan</h2>
+                        <h2 class="text-lg sm:text-2xl font-bold">📊 Rekapitulasi Keuangan</h2>
                         <p class="text-xs sm:text-sm text-purple-100 mt-1">Jan - Des 2026</p>
                     </div>
                     <button onclick="tutupRiwayatKeuangan()" class="text-white hover:text-purple-200 text-2xl font-bold transition">
@@ -1285,8 +1300,9 @@
                 }
             });
         }
+        <% } %>
 
-        // Fungsi untuk Modal List Pemasukan Lain (Hanya Admin)
+        // Fungsi untuk Modal List Pemasukan Lain (UNTUK SEMUA USER: Warga & Admin)
         function bukaListPemasukanLain() {
             document.getElementById('modalListPemasukanLain').classList.remove('hidden');
         }
@@ -1305,6 +1321,7 @@
             });
         }
 
+        <% if (isAdmin) { %>
         // Fungsi untuk Modal Pengeluaran (Hanya Admin)
         function bukaFormPengeluaran() {
             document.getElementById('modalPengeluaran').classList.remove('hidden');
